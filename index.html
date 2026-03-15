@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QOIX Synthesizer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ─────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <span class="q">Q</span><span class="rest">OIX</span>
+      <span class="tag">Synthesizer</span>
+    </div>
+
+    <div class="header-center">
+      <label class="hdr-label">Preset</label>
+      <select id="preset-select"></select>
+      <button id="save-preset-btn">Save</button>
+    </div>
+
+    <div class="header-right">
+      <label class="hdr-label">Master</label>
+      <input type="range" id="master-volume" min="0" max="1" step="0.01" value="0.7" />
+      <span class="small-val" id="master-vol-disp">70%</span>
+      <button id="panic-btn">&#9724; Panic</button>
+    </div>
+  </header>
+
+  <!-- ── Synth Tabs ──────────────────────────────────── -->
+  <nav class="synth-tabs" role="tablist">
+    <button class="tab-btn active" data-tab="sub">Subtractive</button>
+    <button class="tab-btn" data-tab="fm">FM Synthesis</button>
+    <button class="tab-btn" data-tab="wt">Wavetable / Oxford</button>
+    <button class="tab-btn" data-tab="matrix">Mod Matrix</button>
+    <button class="tab-btn" data-tab="rand">Random Gen</button>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════
+       TAB: SUBTRACTIVE
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-sub">
+    <div class="sub-grid">
+
+      <!-- OSC 1 -->
+      <section class="panel" id="panel-osc1">
+        <h2>OSC 1
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="osc1-enabled" checked /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row">
+          <span class="lbl">Wave</span>
+          <div class="wave-btns" data-osc="1">
+            <button class="wb active" data-wave="sawtooth">Saw</button>
+            <button class="wb" data-wave="square">Sqr</button>
+            <button class="wb" data-wave="triangle">Tri</button>
+            <button class="wb" data-wave="sine">Sin</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Oct</span><input type="range" id="osc1-octave" min="-2" max="2" step="1" value="0" /><span class="val" id="osc1-octave-v">0</span></div>
+        <div class="ctrl-row"><span class="lbl">Detune</span><input type="range" id="osc1-detune" min="-50" max="50" step="1" value="0" /><span class="val" id="osc1-detune-v">0¢</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="osc1-level" min="0" max="1" step="0.01" value="0.8" /><span class="val" id="osc1-level-v">80%</span></div>
+      </section>
+
+      <!-- OSC 2 -->
+      <section class="panel" id="panel-osc2">
+        <h2>OSC 2
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="osc2-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row">
+          <span class="lbl">Wave</span>
+          <div class="wave-btns" data-osc="2">
+            <button class="wb" data-wave="sawtooth">Saw</button>
+            <button class="wb active" data-wave="square">Sqr</button>
+            <button class="wb" data-wave="triangle">Tri</button>
+            <button class="wb" data-wave="sine">Sin</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Oct</span><input type="range" id="osc2-octave" min="-2" max="2" step="1" value="0" /><span class="val" id="osc2-octave-v">0</span></div>
+        <div class="ctrl-row"><span class="lbl">Detune</span><input type="range" id="osc2-detune" min="-50" max="50" step="1" value="7" /><span class="val" id="osc2-detune-v">7¢</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="osc2-level" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="osc2-level-v">50%</span></div>
+      </section>
+
+      <!-- Noise -->
+      <section class="panel" id="panel-noise">
+        <h2>Noise
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="noise-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row">
+          <span class="lbl">Type</span>
+          <div class="wave-btns" data-osc="noise">
+            <button class="wb active" data-wave="white">White</button>
+            <button class="wb" data-wave="pink">Pink</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="noise-level" min="0" max="1" step="0.01" value="0.2" /><span class="val" id="noise-level-v">20%</span></div>
+      </section>
+
+      <!-- Amp Envelope -->
+      <section class="panel" id="panel-env">
+        <h2>Amplitude Envelope</h2>
+        <div class="env-sliders">
+          <div class="env-col"><label>A</label><input type="range" id="env-attack" min="0.001" max="4" step="0.001" value="0.01" class="vslider" /><span class="val" id="env-attack-v">10ms</span></div>
+          <div class="env-col"><label>D</label><input type="range" id="env-decay" min="0.001" max="4" step="0.001" value="0.1" class="vslider" /><span class="val" id="env-decay-v">100ms</span></div>
+          <div class="env-col"><label>S</label><input type="range" id="env-sustain" min="0" max="1" step="0.01" value="0.7" class="vslider" /><span class="val" id="env-sustain-v">70%</span></div>
+          <div class="env-col"><label>R</label><input type="range" id="env-release" min="0.001" max="8" step="0.001" value="0.3" class="vslider" /><span class="val" id="env-release-v">300ms</span></div>
+        </div>
+        <canvas id="env-canvas" width="280" height="72"></canvas>
+      </section>
+
+      <!-- Filter -->
+      <section class="panel" id="panel-filter">
+        <h2>Filter</h2>
+        <div class="ctrl-row">
+          <span class="lbl">Type</span>
+          <div class="wave-btns ftype">
+            <button class="wb active" data-filter="lowpass">LP</button>
+            <button class="wb" data-filter="highpass">HP</button>
+            <button class="wb" data-filter="bandpass">BP</button>
+            <button class="wb" data-filter="notch">Notch</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Cutoff</span><input type="range" id="filter-cutoff" min="20" max="20000" step="1" value="8000" /><span class="val" id="filter-cutoff-v">8kHz</span></div>
+        <div class="ctrl-row"><span class="lbl">Res</span><input type="range" id="filter-resonance" min="0.1" max="30" step="0.1" value="1" /><span class="val" id="filter-resonance-v">1.0</span></div>
+        <div class="section-sub">Filter Env</div>
+        <div class="ctrl-row"><span class="lbl">Amount</span><input type="range" id="fenv-amount" min="-10000" max="10000" step="10" value="2000" /><span class="val" id="fenv-amount-v">+2000Hz</span></div>
+        <div class="ctrl-row"><span class="lbl">A</span><input type="range" id="fenv-attack" min="0.001" max="4" step="0.001" value="0.01" /><span class="val" id="fenv-attack-v">10ms</span></div>
+        <div class="ctrl-row"><span class="lbl">D</span><input type="range" id="fenv-decay" min="0.001" max="4" step="0.001" value="0.2" /><span class="val" id="fenv-decay-v">200ms</span></div>
+        <div class="ctrl-row"><span class="lbl">S</span><input type="range" id="fenv-sustain" min="0" max="1" step="0.01" value="0.3" /><span class="val" id="fenv-sustain-v">30%</span></div>
+        <div class="ctrl-row"><span class="lbl">R</span><input type="range" id="fenv-release" min="0.001" max="8" step="0.001" value="0.2" /><span class="val" id="fenv-release-v">200ms</span></div>
+      </section>
+
+      <!-- LFO -->
+      <section class="panel" id="panel-lfo">
+        <h2>LFO
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="lfo-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row">
+          <span class="lbl">Wave</span>
+          <div class="wave-btns" data-osc="lfo">
+            <button class="wb active" data-wave="sine">Sin</button>
+            <button class="wb" data-wave="triangle">Tri</button>
+            <button class="wb" data-wave="square">Sqr</button>
+            <button class="wb" data-wave="sawtooth">Saw</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Rate</span><input type="range" id="lfo-rate" min="0.1" max="20" step="0.1" value="4" /><span class="val" id="lfo-rate-v">4Hz</span></div>
+        <div class="ctrl-row"><span class="lbl">Depth</span><input type="range" id="lfo-depth" min="0" max="1" step="0.01" value="0.3" /><span class="val" id="lfo-depth-v">30%</span></div>
+        <div class="ctrl-row">
+          <span class="lbl">Target</span>
+          <select id="lfo-target">
+            <option value="pitch">Pitch (Vibrato)</option>
+            <option value="filter">Filter (Wah)</option>
+            <option value="amplitude">Amp (Tremolo)</option>
+            <option value="pan">Pan (Auto-pan)</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Effects -->
+      <section class="panel fx-panel" id="panel-fx">
+        <h2>Effects</h2>
+
+        <div class="fx-block">
+          <div class="fx-hdr">
+            <span>Distortion</span>
+            <label class="toggle-wrap"><input type="checkbox" id="dist-enabled" /><span class="toggle"></span></label>
+          </div>
+          <div class="ctrl-row"><span class="lbl">Drive</span><input type="range" id="dist-drive" min="0" max="400" step="1" value="80" /><span class="val" id="dist-drive-v">80</span></div>
+        </div>
+
+        <div class="fx-sep"></div>
+
+        <div class="fx-block">
+          <div class="fx-hdr">
+            <span>Chorus</span>
+            <label class="toggle-wrap"><input type="checkbox" id="chorus-enabled" /><span class="toggle"></span></label>
+          </div>
+          <div class="ctrl-row"><span class="lbl">Rate</span><input type="range" id="chorus-rate" min="0.1" max="10" step="0.1" value="1.5" /><span class="val" id="chorus-rate-v">1.5Hz</span></div>
+          <div class="ctrl-row"><span class="lbl">Depth</span><input type="range" id="chorus-depth" min="0" max="0.02" step="0.0001" value="0.003" /><span class="val" id="chorus-depth-v">3ms</span></div>
+          <div class="ctrl-row"><span class="lbl">Mix</span><input type="range" id="chorus-mix" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="chorus-mix-v">50%</span></div>
+        </div>
+
+        <div class="fx-sep"></div>
+
+        <div class="fx-block">
+          <div class="fx-hdr">
+            <span>Delay</span>
+            <label class="toggle-wrap"><input type="checkbox" id="delay-enabled" /><span class="toggle"></span></label>
+          </div>
+          <div class="ctrl-row"><span class="lbl">Time</span><input type="range" id="delay-time" min="0.01" max="1" step="0.01" value="0.375" /><span class="val" id="delay-time-v">375ms</span></div>
+          <div class="ctrl-row"><span class="lbl">Fdbk</span><input type="range" id="delay-feedback" min="0" max="0.95" step="0.01" value="0.4" /><span class="val" id="delay-feedback-v">40%</span></div>
+          <div class="ctrl-row"><span class="lbl">Mix</span><input type="range" id="delay-mix" min="0" max="1" step="0.01" value="0.3" /><span class="val" id="delay-mix-v">30%</span></div>
+        </div>
+
+        <div class="fx-sep"></div>
+
+        <div class="fx-block">
+          <div class="fx-hdr">
+            <span>Reverb</span>
+            <label class="toggle-wrap"><input type="checkbox" id="reverb-enabled" /><span class="toggle"></span></label>
+          </div>
+          <div class="ctrl-row"><span class="lbl">Size</span><input type="range" id="reverb-size" min="0.1" max="6" step="0.1" value="2" /><span class="val" id="reverb-size-v">2.0s</span></div>
+          <div class="ctrl-row"><span class="lbl">Damp</span><input type="range" id="reverb-damp" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="reverb-damp-v">50%</span></div>
+          <div class="ctrl-row"><span class="lbl">Mix</span><input type="range" id="reverb-mix" min="0" max="1" step="0.01" value="0.2" /><span class="val" id="reverb-mix-v">20%</span></div>
+        </div>
+      </section>
+
+      <!-- Visualizer -->
+      <section class="panel viz-panel" id="panel-viz">
+        <h2>Visualizer
+          <div class="ml-auto viz-mode-wrap">
+            <button class="sm-btn active" data-vizmode="waveform">Wave</button>
+            <button class="sm-btn" data-vizmode="spectrum">Spectrum</button>
+          </div>
+        </h2>
+        <canvas id="viz-canvas" width="380" height="110"></canvas>
+        <div class="active-notes">Notes: <span id="active-notes-disp">—</span></div>
+      </section>
+
+    </div><!-- .sub-grid -->
+  </div><!-- #tab-sub -->
+
+  <!-- ═══════════════════════════════════════════════════
+       TAB: FM SYNTHESIS
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-fm">
+    <div class="fm-grid">
+
+      <section class="panel fm-header-panel">
+        <h2>FM Synthesis (4-Operator)
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="fm-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row">
+          <span class="lbl">Algorithm</span>
+          <select id="fm-algorithm"></select>
+        </div>
+        <canvas id="fm-algo-canvas" width="280" height="100"></canvas>
+        <div class="fm-algo-tip">Select an algorithm to see operator routing</div>
+      </section>
+
+      <!-- FM Operators 1–4 -->
+      <section class="panel fm-op-panel" id="fm-op-0">
+        <h2 class="op-title op-carrier">Operator A (Carrier)</h2>
+        <div class="ctrl-row"><span class="lbl">Ratio</span><input type="range" class="fm-ratio" data-op="0" min="0.25" max="16" step="0.25" value="1" /><span class="val fm-ratio-v" data-op="0">1.00</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" class="fm-level" data-op="0" min="0" max="1" step="0.01" value="0.8" /><span class="val fm-level-v" data-op="0">80%</span></div>
+        <div class="section-sub">Envelope</div>
+        <div class="ctrl-row"><span class="lbl">A</span><input type="range" class="fm-attack" data-op="0" min="0.001" max="4" step="0.001" value="0.01" /><span class="val fm-attack-v" data-op="0">10ms</span></div>
+        <div class="ctrl-row"><span class="lbl">D</span><input type="range" class="fm-decay" data-op="0" min="0.001" max="4" step="0.001" value="0.2" /><span class="val fm-decay-v" data-op="0">200ms</span></div>
+        <div class="ctrl-row"><span class="lbl">S</span><input type="range" class="fm-sustain" data-op="0" min="0" max="1" step="0.01" value="0.7" /><span class="val fm-sustain-v" data-op="0">70%</span></div>
+        <div class="ctrl-row"><span class="lbl">R</span><input type="range" class="fm-release" data-op="0" min="0.001" max="8" step="0.001" value="0.3" /><span class="val fm-release-v" data-op="0">300ms</span></div>
+      </section>
+
+      <section class="panel fm-op-panel" id="fm-op-1">
+        <h2 class="op-title op-mod">Operator B (Modulator)</h2>
+        <div class="ctrl-row"><span class="lbl">Ratio</span><input type="range" class="fm-ratio" data-op="1" min="0.25" max="16" step="0.25" value="2" /><span class="val fm-ratio-v" data-op="1">2.00</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" class="fm-level" data-op="1" min="0" max="1" step="0.01" value="0.6" /><span class="val fm-level-v" data-op="1">60%</span></div>
+        <div class="section-sub">Envelope</div>
+        <div class="ctrl-row"><span class="lbl">A</span><input type="range" class="fm-attack" data-op="1" min="0.001" max="4" step="0.001" value="0.01" /><span class="val fm-attack-v" data-op="1">10ms</span></div>
+        <div class="ctrl-row"><span class="lbl">D</span><input type="range" class="fm-decay" data-op="1" min="0.001" max="4" step="0.001" value="0.15" /><span class="val fm-decay-v" data-op="1">150ms</span></div>
+        <div class="ctrl-row"><span class="lbl">S</span><input type="range" class="fm-sustain" data-op="1" min="0" max="1" step="0.01" value="0.5" /><span class="val fm-sustain-v" data-op="1">50%</span></div>
+        <div class="ctrl-row"><span class="lbl">R</span><input type="range" class="fm-release" data-op="1" min="0.001" max="8" step="0.001" value="0.3" /><span class="val fm-release-v" data-op="1">300ms</span></div>
+      </section>
+
+      <section class="panel fm-op-panel" id="fm-op-2">
+        <h2 class="op-title op-mod">Operator C (Modulator)</h2>
+        <div class="ctrl-row"><span class="lbl">Ratio</span><input type="range" class="fm-ratio" data-op="2" min="0.25" max="16" step="0.25" value="3" /><span class="val fm-ratio-v" data-op="2">3.00</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" class="fm-level" data-op="2" min="0" max="1" step="0.01" value="0.4" /><span class="val fm-level-v" data-op="2">40%</span></div>
+        <div class="section-sub">Envelope</div>
+        <div class="ctrl-row"><span class="lbl">A</span><input type="range" class="fm-attack" data-op="2" min="0.001" max="4" step="0.001" value="0.005" /><span class="val fm-attack-v" data-op="2">5ms</span></div>
+        <div class="ctrl-row"><span class="lbl">D</span><input type="range" class="fm-decay" data-op="2" min="0.001" max="4" step="0.001" value="0.1" /><span class="val fm-decay-v" data-op="2">100ms</span></div>
+        <div class="ctrl-row"><span class="lbl">S</span><input type="range" class="fm-sustain" data-op="2" min="0" max="1" step="0.01" value="0.3" /><span class="val fm-sustain-v" data-op="2">30%</span></div>
+        <div class="ctrl-row"><span class="lbl">R</span><input type="range" class="fm-release" data-op="2" min="0.001" max="8" step="0.001" value="0.2" /><span class="val fm-release-v" data-op="2">200ms</span></div>
+      </section>
+
+      <section class="panel fm-op-panel" id="fm-op-3">
+        <h2 class="op-title op-mod">Operator D (Modulator)</h2>
+        <div class="ctrl-row"><span class="lbl">Ratio</span><input type="range" class="fm-ratio" data-op="3" min="0.25" max="16" step="0.25" value="0.5" /><span class="val fm-ratio-v" data-op="3">0.50</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" class="fm-level" data-op="3" min="0" max="1" step="0.01" value="0.5" /><span class="val fm-level-v" data-op="3">50%</span></div>
+        <div class="section-sub">Envelope</div>
+        <div class="ctrl-row"><span class="lbl">A</span><input type="range" class="fm-attack" data-op="3" min="0.001" max="4" step="0.001" value="0.01" /><span class="val fm-attack-v" data-op="3">10ms</span></div>
+        <div class="ctrl-row"><span class="lbl">D</span><input type="range" class="fm-decay" data-op="3" min="0.001" max="4" step="0.001" value="0.25" /><span class="val fm-decay-v" data-op="3">250ms</span></div>
+        <div class="ctrl-row"><span class="lbl">S</span><input type="range" class="fm-sustain" data-op="3" min="0" max="1" step="0.01" value="0.4" /><span class="val fm-sustain-v" data-op="3">40%</span></div>
+        <div class="ctrl-row"><span class="lbl">R</span><input type="range" class="fm-release" data-op="3" min="0.001" max="8" step="0.001" value="0.4" /><span class="val fm-release-v" data-op="3">400ms</span></div>
+      </section>
+
+    </div><!-- .fm-grid -->
+  </div><!-- #tab-fm -->
+
+  <!-- ═══════════════════════════════════════════════════
+       TAB: WAVETABLE / OXFORD
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-wt">
+    <div class="wt-grid">
+
+      <section class="panel">
+        <h2>Wavetable / Oxford Oscillator
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="wt-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row">
+          <span class="lbl">Mode</span>
+          <div class="wave-btns wt-mode-btns">
+            <button class="wb active" data-wtmode="wavetable">Wavetable</button>
+            <button class="wb" data-wtmode="oxford">Oxford Harmonic</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="wt-level" min="0" max="1" step="0.01" value="0.7" /><span class="val" id="wt-level-v">70%</span></div>
+        <div class="ctrl-row"><span class="lbl">Oct</span><input type="range" id="wt-octave" min="-2" max="2" step="1" value="0" /><span class="val" id="wt-octave-v">0</span></div>
+        <div class="ctrl-row"><span class="lbl">Detune</span><input type="range" id="wt-detune" min="-50" max="50" step="1" value="0" /><span class="val" id="wt-detune-v">0¢</span></div>
+      </section>
+
+      <!-- Wavetable mode -->
+      <section class="panel wt-controls" id="wt-table-panel">
+        <h2>Table Selection &amp; Morph</h2>
+        <div class="ctrl-row">
+          <span class="lbl">Table A</span>
+          <select id="wt-tableA"></select>
+        </div>
+        <div class="ctrl-row">
+          <span class="lbl">Table B</span>
+          <select id="wt-tableB"></select>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Position</span><input type="range" id="wt-position" min="0" max="1" step="0.001" value="0" /><span class="val" id="wt-position-v">0%</span></div>
+        <canvas id="wt-canvas" width="300" height="100"></canvas>
+        <div class="wt-table-grid" id="wt-table-grid"></div>
+      </section>
+
+      <!-- Oxford harmonic mode -->
+      <section class="panel" id="wt-oxford-panel" style="display:none">
+        <h2>Oxford Harmonic Oscillator — OSCar Style</h2>
+        <div class="oxford-info">Set amplitude of each harmonic partial (1=fundamental)</div>
+        <div class="harmonic-grid" id="harmonic-grid"></div>
+        <canvas id="oxford-canvas" width="400" height="120"></canvas>
+        <div class="oxford-presets">
+          <button class="sm-btn" data-oxford="sine">Sine</button>
+          <button class="sm-btn" data-oxford="saw">Sawtooth</button>
+          <button class="sm-btn" data-oxford="square">Square</button>
+          <button class="sm-btn" data-oxford="strings">Strings</button>
+          <button class="sm-btn" data-oxford="brass">Brass</button>
+          <button class="sm-btn" data-oxford="vocal">Vocal</button>
+          <button class="sm-btn" data-oxford="clear">Clear</button>
+        </div>
+      </section>
+
+    </div>
+  </div><!-- #tab-wt -->
+
+  <!-- ═══════════════════════════════════════════════════
+       TAB: MOD MATRIX
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-matrix">
+    <div class="matrix-wrap">
+
+      <section class="panel matrix-panel">
+        <h2>SN2 Modulation Matrix — Source → Destination Routing</h2>
+        <div class="matrix-info">Enable a cell to route a source to a destination. Amount is bipolar (−1 to +1).</div>
+        <div class="matrix-scroll">
+          <table class="mod-matrix-table" id="mod-matrix-table">
+            <!-- Generated by JS -->
+          </table>
+        </div>
+      </section>
+
+      <section class="panel lfo2-panel">
+        <h2>LFO 2 (Mod Matrix)</h2>
+        <div class="ctrl-row"><span class="lbl">Rate</span><input type="range" id="lfo2-rate" min="0.1" max="20" step="0.1" value="1.5" /><span class="val" id="lfo2-rate-v">1.5Hz</span></div>
+        <div class="ctrl-row"><span class="lbl">Depth</span><input type="range" id="lfo2-depth" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="lfo2-depth-v">50%</span></div>
+        <div class="ctrl-row">
+          <span class="lbl">Wave</span>
+          <div class="wave-btns" data-osc="lfo2">
+            <button class="wb active" data-wave="sine">Sin</button>
+            <button class="wb" data-wave="triangle">Tri</button>
+            <button class="wb" data-wave="square">Sqr</button>
+            <button class="wb" data-wave="sawtooth">Saw</button>
+          </div>
+        </div>
+        <div class="mod-source-display">
+          <div class="mod-src-row" id="mod-src-display"><!-- filled by JS --></div>
+        </div>
+      </section>
+
+    </div>
+  </div><!-- #tab-matrix -->
+
+  <!-- ═══════════════════════════════════════════════════
+       TAB: RANDOM GENERATOR
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-rand">
+    <div class="rand-grid">
+
+      <section class="panel">
+        <h2>Random Note Generator</h2>
+        <div class="rand-big-btns">
+          <button id="rand-start-btn" class="big-btn green-btn">▶ Start</button>
+          <button id="rand-stop-btn" class="big-btn red-btn">■ Stop</button>
+        </div>
+        <div class="ctrl-row"><span class="lbl">BPM</span><input type="range" id="rand-bpm" min="40" max="300" step="1" value="120" /><span class="val" id="rand-bpm-v">120</span></div>
+        <div class="ctrl-row"><span class="lbl">Steps</span>
+          <div class="wave-btns">
+            <button class="wb" data-stepdiv="4">4th</button>
+            <button class="wb active" data-stepdiv="8">8th</button>
+            <button class="wb" data-stepdiv="16">16th</button>
+            <button class="wb" data-stepdiv="32">32nd</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Swing</span><input type="range" id="rand-swing" min="0" max="1" step="0.01" value="0" /><span class="val" id="rand-swing-v">0%</span></div>
+        <div class="ctrl-row"><span class="lbl">Density</span><input type="range" id="rand-density" min="0.1" max="1" step="0.01" value="0.8" /><span class="val" id="rand-density-v">80%</span></div>
+        <div class="ctrl-row"><span class="lbl">Note Len</span><input type="range" id="rand-notelen" min="0.05" max="1" step="0.01" value="0.5" /><span class="val" id="rand-notelen-v">50%</span></div>
+      </section>
+
+      <section class="panel">
+        <h2>Scale &amp; Range</h2>
+        <div class="ctrl-row"><span class="lbl">Root</span><select id="rand-root"></select></div>
+        <div class="ctrl-row"><span class="lbl">Scale</span><select id="rand-scale"></select></div>
+        <div class="ctrl-row"><span class="lbl">Oct Low</span><input type="range" id="rand-oct-low" min="1" max="7" step="1" value="3" /><span class="val" id="rand-oct-low-v">3</span></div>
+        <div class="ctrl-row"><span class="lbl">Oct High</span><input type="range" id="rand-oct-high" min="1" max="7" step="1" value="5" /><span class="val" id="rand-oct-high-v">5</span></div>
+      </section>
+
+      <section class="panel">
+        <h2>Pattern Mode</h2>
+        <div class="rand-mode-btns">
+          <button class="mode-btn active" data-randmode="single">Single Notes<br><small>One random note per step</small></button>
+          <button class="mode-btn" data-randmode="chord">Chords<br><small>Stacked harmony</small></button>
+          <button class="mode-btn" data-randmode="arp">Arpeggio<br><small>Cycle through chord</small></button>
+          <button class="mode-btn" data-randmode="walk">Walk Bass<br><small>Step-wise motion</small></button>
+        </div>
+        <div class="ctrl-row" id="chord-size-row">
+          <span class="lbl">Chord Size</span><input type="range" id="rand-chord-size" min="2" max="5" step="1" value="3" /><span class="val" id="rand-chord-size-v">3</span>
+        </div>
+        <div class="rand-status">
+          <span>Status: </span><span id="rand-status">Stopped</span>
+          <span class="rand-note-flash" id="rand-note-flash"></span>
+        </div>
+      </section>
+
+    </div>
+  </div><!-- #tab-rand -->
+
+  <!-- ── Always-visible: Keyboard ───────────────────── -->
+  <section class="keyboard-section">
+    <div class="kbd-header">
+      <h2 class="kbd-title">Keyboard</h2>
+      <div class="kbd-controls">
+        <span class="small">Oct:</span>
+        <button id="kbd-oct-dn">−</button>
+        <strong id="kbd-oct-disp">4</strong>
+        <button id="kbd-oct-up">+</button>
+        <span class="kbd-hint">A–J = white | W E T Y U = black | Z/X = octave</span>
+      </div>
+    </div>
+    <div id="piano" class="piano"></div>
+  </section>
+
+  <footer>QOIX Synthesizer · Web Audio API · FM + Wavetable + Oxford + Mod Matrix · <span id="footer-notes"></span></footer>
+
+</div><!-- #app -->
+
+<!-- Scripts: load order matters -->
+<script src="js/presets.js"></script>
+<script src="js/synth.js"></script>
+<script src="js/fm.js"></script>
+<script src="js/wavetable.js"></script>
+<script src="js/modmatrix.js"></script>
+<script src="js/randomgen.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
