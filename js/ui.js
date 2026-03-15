@@ -1073,7 +1073,105 @@ const UI = (() => {
       document.addEventListener(evt, () => Synth.ensureContext(), { once: true, passive: true });
     });
 
-    console.log('[QOIX] UI ready');
+    // Desktop (Electron) integrations
+    if (window.qoixApp) {
+      initDesktopIntegrations();
+    }
+
+    // Web MIDI (works in Electron + Chrome)
+    initMIDI();
+
+    console.log('[QOIX] UI ready —', window.qoixApp ? 'Desktop' : 'Browser');
+  }
+
+  // ── Desktop / Electron menu events ────────────────────────
+  function initDesktopIntegrations() {
+    const app = window.qoixApp;
+
+    app.onMenuEvent('menu:panic',        () => panicAll());
+    app.onMenuEvent('menu:octave-up',    () => { kbOctave = Math.min(8, kbOctave + 1); $('kbd-oct-disp').textContent = kbOctave; buildPiano(); });
+    app.onMenuEvent('menu:octave-down',  () => { kbOctave = Math.max(0, kbOctave - 1); $('kbd-oct-disp').textContent = kbOctave; buildPiano(); });
+    app.onMenuEvent('menu:rand-start',   () => { Synth.ensureContext(); RandomGen.start(); $('rand-status').textContent = 'Running'; });
+    app.onMenuEvent('menu:rand-stop',    () => { RandomGen.stop(); $('rand-status').textContent = 'Stopped'; });
+
+    app.onMenuEvent('menu:export-preset', async () => {
+      const name  = prompt('Preset name to export:', 'My Preset');
+      if (!name) return;
+      const data  = { name, ...JSON.parse(JSON.stringify(Synth.getState())) };
+      const result = await app.savePresetFile(name, data);
+      if (result.ok) alert(`Saved: ${result.filePath}`);
+    });
+
+    app.onMenuEvent('menu:import-preset', async (filePath) => {
+      const result = await app.readPresetFile(filePath);
+      if (!result.ok) { alert('Could not read preset: ' + result.error); return; }
+      Synth.loadPreset(result.data);
+      syncUIToState();
+      // Add to preset list
+      const sel = $('preset-select');
+      if (sel) {
+        const opt = document.createElement('option');
+        opt.value = Presets.length;
+        opt.textContent = result.data.name || 'Imported';
+        Presets.push(result.data);
+        sel.appendChild(opt);
+        sel.value = Presets.length - 1;
+      }
+    });
+
+    // macOS: hide traffic-light offset for titlebar
+    if (app.platform === 'darwin') {
+      document.body.classList.add('macos-titlebar');
+    }
+  }
+
+  // ── Web MIDI ───────────────────────────────────────────────
+  function initMIDI() {
+    if (!navigator.requestMIDIAccess) return;
+    navigator.requestMIDIAccess({ sysex: false }).then(access => {
+      console.log('[QOIX] MIDI access granted');
+
+      function connectInput(input) {
+        input.onmidimessage = (msg) => {
+          const [status, note, velocity] = msg.data;
+          const cmd = status & 0xf0;
+          if (cmd === 0x90 && velocity > 0) {       // note on
+            Synth.ensureContext();
+            playNote(note, velocity / 127);
+            setPianoKey(note, true);
+          } else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) { // note off
+            releaseNote(note);
+            setPianoKey(note, false);
+          } else if (cmd === 0xb0 && note === 1) {  // CC1 = mod wheel
+            ModMatrix.setModWheel(velocity / 127);
+          } else if (cmd === 0xb0 && note === 123) { // all notes off
+            panicAll();
+          }
+        };
+      }
+
+      // Connect existing inputs
+      access.inputs.forEach(connectInput);
+
+      // Hot-plug
+      access.onstatechange = (e) => {
+        if (e.port.type === 'input' && e.port.state === 'connected') {
+          connectInput(e.port);
+          console.log('[QOIX] MIDI device connected:', e.port.name);
+        }
+      };
+
+      // Show MIDI indicator
+      const footer = document.querySelector('footer');
+      if (footer && access.inputs.size > 0) {
+        const tag = document.createElement('span');
+        tag.style.cssText = 'color:#4fc97e;margin-left:8px;font-weight:600;';
+        tag.textContent = `● MIDI (${access.inputs.size} device${access.inputs.size > 1 ? 's' : ''})`;
+        footer.appendChild(tag);
+      }
+    }).catch(() => {
+      console.log('[QOIX] MIDI not available');
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);

@@ -1,0 +1,112 @@
+{
+  "name": "qoix-synthesizer",
+  "productName": "QOIX Synthesizer",
+  "version": "1.0.0",
+  "description": "QOIX — Professional software synthesizer. FM, Wavetable, Oxford Harmonic, Mod Matrix.",
+  "main": "main.js",
+  "author": {
+    "name": "QOIX",
+    "email": "hello@qoix.app"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "scripts": {
+    "start":       "electron .",
+    "dev":         "electron . --dev",
+    "build":       "electron-builder build --publish never",
+    "build:mac":   "electron-builder build --mac --publish never",
+    "build:win":   "electron-builder build --win --publish never",
+    "build:linux": "electron-builder build --linux --publish never",
+    "build:all":   "electron-builder build -mwl --publish never",
+    "dist":        "electron-builder build --publish always",
+    "pack":        "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron":         "^29.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId":       "app.qoix.synthesizer",
+    "productName": "QOIX Synthesizer",
+    "copyright":   "Copyright © 2025 QOIX",
+    "asar":        true,
+
+    "files": [
+      "index.html",
+      "styles.css",
+      "main.js",
+      "preload.js",
+      "js/**/*",
+      "assets/**/*",
+      "!node_modules",
+      "!dist",
+      "!build"
+    ],
+
+    "directories": {
+      "buildResources": "assets",
+      "output":         "dist"
+    },
+
+    "mac": {
+      "category":         "public.app-category.music",
+      "target": [
+        { "target": "dmg",  "arch": ["universal"] },
+        { "target": "zip",  "arch": ["universal"] }
+      ],
+      "icon":             "assets/icon.icns",
+      "hardenedRuntime":  true,
+      "gatekeeperAssess": false,
+      "entitlements":             "assets/entitlements.mac.plist",
+      "entitlementsInherit":      "assets/entitlements.mac.plist",
+      "darkModeSupport":  true,
+      "minimumSystemVersion": "12.0"
+    },
+
+    "dmg": {
+      "title":       "QOIX Synthesizer",
+      "background":  "assets/dmg-background.png",
+      "window":      { "width": 540, "height": 380 },
+      "contents": [
+        { "x": 140, "y": 180, "type": "file" },
+        { "x": 400, "y": 180, "type": "link", "path": "/Applications" }
+      ]
+    },
+
+    "win": {
+      "target": [
+        { "target": "nsis",    "arch": ["x64", "arm64"] },
+        { "target": "portable","arch": ["x64"] }
+      ],
+      "icon": "assets/icon.ico"
+    },
+
+    "nsis": {
+      "oneClick":          false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon":     "assets/icon.ico",
+      "uninstallerIcon":   "assets/icon.ico",
+      "installerHeader":   "assets/installer-header.bmp",
+      "license":           "LICENSE",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+
+    "linux": {
+      "target": ["AppImage", "deb", "rpm"],
+      "icon":     "assets/icon.png",
+      "category": "Audio",
+      "desktop": {
+        "Name":       "QOIX Synthesizer",
+        "Comment":    "Professional software synthesizer",
+        "Categories": "Audio;Music;AudioVideo;"
+      }
+    },
+
+    "publish": {
+      "provider": "github",
+      "owner":    "qoix",
+      "repo":     "qoix-synthesizer"
+    }
+  }
+}

@@ -641,6 +641,11 @@ select:focus { outline: none; border-color: var(--accent); }
 .meter-val { font-size: 0.68rem; color: var(--text); }
 .meter-val.big { font-size: 0.85rem; font-weight: 600; color: var(--glow); }
 
+/* ── macOS traffic-light offset ─────────────────────────── */
+body.macos-titlebar header {
+  padding-left: 80px; /* leave room for traffic lights */
+}
+
 /* ── Footer ──────────────────────────────────────────────── */
 footer {
   text-align: center;
