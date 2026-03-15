@@ -247,18 +247,19 @@ select:focus { outline: none; border-color: var(--accent); }
   grid-template-areas:
     "osc1 osc2 noise env env"
     "filter filter lfo fx fx"
-    "viz viz viz fx fx";
+    "viz viz quality fx fx";
   gap: var(--gap);
 }
 
-#panel-osc1   { grid-area: osc1; }
-#panel-osc2   { grid-area: osc2; }
-#panel-noise  { grid-area: noise; }
-#panel-env    { grid-area: env; }
-#panel-filter { grid-area: filter; }
-#panel-lfo    { grid-area: lfo; }
-#panel-fx     { grid-area: fx; overflow-y: auto; max-height: 480px; }
-#panel-viz    { grid-area: viz; }
+#panel-osc1    { grid-area: osc1; }
+#panel-osc2    { grid-area: osc2; }
+#panel-noise   { grid-area: noise; }
+#panel-env     { grid-area: env; }
+#panel-filter  { grid-area: filter; }
+#panel-lfo     { grid-area: lfo; }
+#panel-fx      { grid-area: fx; overflow-y: auto; max-height: 480px; }
+#panel-viz     { grid-area: viz; }
+#panel-quality { grid-area: quality; }
 
 @media (max-width: 1000px) {
   .sub-grid {
@@ -268,7 +269,7 @@ select:focus { outline: none; border-color: var(--accent); }
       "noise env"
       "filter lfo"
       "fx fx"
-      "viz viz";
+      "viz quality";
   }
 }
 
@@ -605,6 +606,40 @@ select:focus { outline: none; border-color: var(--accent); }
 }
 .key.black:hover  { background: linear-gradient(180deg, #383848 0%, #28283a 100%); }
 .key.black.active { background: linear-gradient(180deg, var(--accent) 0%, #3030e0 100%); color: #fff; }
+
+/* ── Quality panel ───────────────────────────────────────── */
+.quality-meters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.meter-col {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.meter-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
+.meter-bar-wrap {
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.meter-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--glow) 70%, var(--accent2) 100%);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.1s;
+}
+.meter-val { font-size: 0.68rem; color: var(--text); }
+.meter-val.big { font-size: 0.85rem; font-weight: 600; color: var(--glow); }
 
 /* ── Footer ──────────────────────────────────────────────── */
 footer {

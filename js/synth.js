@@ -32,6 +32,16 @@ const Synth = (() => {
   // ── Active voices ─────────────────────────────────────────
   const activeVoices = new Map(); // midiNote -> voice object
 
+  // ── Quality / performance settings ───────────────────────
+  // Defaults tuned for M2 Mac; reduce for lower-end hardware
+  const quality = {
+    maxVoices:    32,      // polyphony limit (voice stealing kicks in above this)
+    fftSize:      4096,    // analyser resolution (must be power of 2, max 32768)
+    reverbDense:  true,    // use denser early-reflection IR (more CPU, better quality)
+    distCurve:    1024,    // distortion waveshaper table resolution
+    noiseSeconds: 4,       // seconds of noise buffer (longer = less audible loop)
+  };
+
   // ── State ─────────────────────────────────────────────────
   const state = {
     masterVolume: 0.7,
@@ -55,15 +65,28 @@ const Synth = (() => {
     masterGain.gain.value = state.masterVolume;
 
     analyser = ctx.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.8;
+    analyser.fftSize = quality.fftSize;
+    analyser.smoothingTimeConstant = 0.82;
 
     // Build FX chain: source → dist → chorus → delay → reverb → analyser → master → out
     buildEffectChain();
 
     masterGain.connect(ctx.destination);
-    console.log('[QOIX] Audio engine initialized');
+    console.log(`[QOIX] Audio engine initialized — ${ctx.sampleRate}Hz, ${quality.maxVoices} voices, FFT ${quality.fftSize}`);
   }
+
+  // ── Quality setters (call before or after init) ───────────
+  function setQuality(param, value) {
+    quality[param] = value;
+    if (param === 'fftSize' && analyser) {
+      analyser.fftSize = value;
+    }
+    if (param === 'maxVoices') {
+      // Voice stealing will use new limit on next noteOn
+    }
+  }
+
+  function getQuality() { return quality; }
 
   function ensureContext() {
     if (!ctx) init();
@@ -72,7 +95,7 @@ const Synth = (() => {
 
   // ── Distortion curve ──────────────────────────────────────
   function makeDistortionCurve(amount) {
-    const n = 256;
+    const n = quality.distCurve;
     const curve = new Float32Array(n);
     const k = amount;
     for (let i = 0; i < n; i++) {
@@ -85,12 +108,27 @@ const Synth = (() => {
   // ── Reverb IR ─────────────────────────────────────────────
   function buildImpulse(duration, decay) {
     const rate = ctx.sampleRate;
-    const len = rate * duration;
+    const len = Math.floor(rate * duration);
     const impulse = ctx.createBuffer(2, len, rate);
+
     for (let ch = 0; ch < 2; ch++) {
-      const ch_data = impulse.getChannelData(ch);
-      for (let i = 0; i < len; i++) {
-        ch_data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      const data = impulse.getChannelData(ch);
+      if (quality.reverbDense) {
+        // Denser IR: early reflections + exponential tail (better quality, M2-friendly)
+        const earlyEnd = Math.min(Math.floor(rate * 0.08), len); // 80ms early reflections
+        for (let i = 0; i < len; i++) {
+          const env = Math.pow(1 - i / len, decay);
+          // Early reflections: stronger, slightly correlated L/R
+          const early = i < earlyEnd ? (Math.random() * 2 - 1) * 1.5 : 0;
+          // Late tail: diffuse noise
+          const late  = (Math.random() * 2 - 1);
+          data[i] = (early + late) * env * 0.5;
+        }
+      } else {
+        // Lightweight IR: simple exponential noise
+        for (let i = 0; i < len; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+        }
       }
     }
     return impulse;
@@ -189,7 +227,7 @@ const Synth = (() => {
   const _noiseBuffers = {};
   function getNoiseBuffer(type) {
     if (_noiseBuffers[type]) return _noiseBuffers[type];
-    const len = ctx.sampleRate * 2;
+    const len = ctx.sampleRate * quality.noiseSeconds;
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buf.getChannelData(0);
     if (type === 'white') {
@@ -212,10 +250,22 @@ const Synth = (() => {
     return buf;
   }
 
+  // ── Voice stealing: kill oldest voice when at polyphony limit ──
+  function stealVoiceIfNeeded() {
+    if (activeVoices.size < quality.maxVoices) return;
+    // Find the oldest voice (smallest startTime)
+    let oldestNote = null, oldestTime = Infinity;
+    activeVoices.forEach((voice, note) => {
+      if (voice.startTime < oldestTime) { oldestTime = voice.startTime; oldestNote = note; }
+    });
+    if (oldestNote !== null) noteOff(oldestNote, true);
+  }
+
   // ── Note on ───────────────────────────────────────────────
   function noteOn(midiNote, velocity = 1) {
     ensureContext();
     if (activeVoices.has(midiNote)) noteOff(midiNote, true);
+    stealVoiceIfNeeded();
 
     const freq = midiToFreq(midiNote);
     const now = ctx.currentTime;
@@ -529,6 +579,7 @@ const Synth = (() => {
     loadPreset,
     getState, getAnalyser, getActiveVoices,
     midiToFreq, _getContext,
+    setQuality, getQuality,
     _voiceDestination: null,
     _chorusWetGain: null,
   };

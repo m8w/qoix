@@ -957,6 +957,9 @@ const UI = (() => {
         }
       }
 
+      // Voice meter
+      updateVoiceMeter();
+
       // Update mod matrix source display
       ModMatrix.SOURCES.forEach(src => {
         const el = document.getElementById('msv-' + src.id);
@@ -964,6 +967,72 @@ const UI = (() => {
       });
     }
     draw();
+  }
+
+  // ── Quality panel ─────────────────────────────────────────
+  function bindQuality() {
+    // Populate initial hardware info once context is running
+    function updateHardwareInfo() {
+      const ctx = Synth._getContext();
+      if (!ctx) return;
+      const srEl  = $('sample-rate-disp');
+      const bufEl = $('buffer-size-disp');
+      if (srEl)  srEl.textContent  = `${ctx.sampleRate / 1000}kHz`;
+      if (bufEl) bufEl.textContent = ctx.baseLatency
+        ? `${Math.round(ctx.baseLatency * 1000)}ms`
+        : '—';
+    }
+    // Retry until context is ready
+    const hwTimer = setInterval(() => {
+      if (Synth._getContext()) { updateHardwareInfo(); clearInterval(hwTimer); }
+    }, 200);
+
+    // Max voices
+    const mvEl = $('q-max-voices');
+    if (mvEl) {
+      mvEl.addEventListener('input', () => {
+        const v = parseInt(mvEl.value);
+        Synth.setQuality('maxVoices', v);
+        $('q-max-voices-v').textContent = v;
+        $('voice-max').textContent = v;
+      });
+    }
+
+    // FFT size
+    const fftEl = $('q-fft-size');
+    if (fftEl) {
+      fftEl.addEventListener('change', () => {
+        Synth.setQuality('fftSize', parseInt(fftEl.value));
+      });
+    }
+
+    // Reverb quality
+    document.querySelectorAll('[data-reverbq]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-reverbq]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        Synth.setQuality('reverbDense', btn.dataset.reverbq === 'dense');
+      });
+    });
+
+    // Distortion curve resolution
+    const dcEl = $('q-dist-curve');
+    if (dcEl) {
+      dcEl.addEventListener('change', () => {
+        Synth.setQuality('distCurve', parseInt(dcEl.value));
+      });
+    }
+  }
+
+  // Update voice meter (called from the draw loop)
+  function updateVoiceMeter() {
+    const q    = Synth.getQuality ? Synth.getQuality() : { maxVoices: 32 };
+    const used = Synth.getActiveVoices().size;
+    const pct  = Math.min(100, (used / q.maxVoices) * 100);
+    const bar  = $('voice-meter');
+    const cnt  = $('voice-count');
+    if (bar) bar.style.width = pct + '%';
+    if (cnt) cnt.textContent = used;
   }
 
   // ── Octave buttons ────────────────────────────────────────
@@ -992,6 +1061,7 @@ const UI = (() => {
     bindWavetable();
     bindModMatrix();
     bindRandomGen();
+    bindQuality();
     initPresets();
     initKeyboardInput();
     syncUIToState();

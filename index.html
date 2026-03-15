@@ -228,6 +228,58 @@
         <div class="active-notes">Notes: <span id="active-notes-disp">—</span></div>
       </section>
 
+      <!-- Quality / Performance -->
+      <section class="panel quality-panel" id="panel-quality">
+        <h2>Quality &amp; Performance</h2>
+
+        <div class="quality-meters">
+          <div class="meter-col">
+            <div class="meter-label">Voices</div>
+            <div class="meter-bar-wrap"><div class="meter-bar" id="voice-meter"></div></div>
+            <div class="meter-val"><span id="voice-count">0</span> / <span id="voice-max">32</span></div>
+          </div>
+          <div class="meter-col">
+            <div class="meter-label">Sample Rate</div>
+            <div class="meter-val big" id="sample-rate-disp">—</div>
+          </div>
+          <div class="meter-col">
+            <div class="meter-label">Buffer</div>
+            <div class="meter-val big" id="buffer-size-disp">—</div>
+          </div>
+        </div>
+
+        <div class="ctrl-row">
+          <span class="lbl">Max Voices</span>
+          <input type="range" id="q-max-voices" min="1" max="32" step="1" value="32" />
+          <span class="val" id="q-max-voices-v">32</span>
+        </div>
+        <div class="ctrl-row">
+          <span class="lbl">FFT Size</span>
+          <select id="q-fft-size">
+            <option value="1024">1024 — Fast</option>
+            <option value="2048">2048 — Balanced</option>
+            <option value="4096" selected>4096 — Detailed</option>
+            <option value="8192">8192 — High-res</option>
+          </select>
+        </div>
+        <div class="ctrl-row">
+          <span class="lbl">Reverb IR</span>
+          <div class="wave-btns">
+            <button class="wb active" data-reverbq="dense">Dense (M2)</button>
+            <button class="wb" data-reverbq="lite">Lite (mobile)</button>
+          </div>
+        </div>
+        <div class="ctrl-row">
+          <span class="lbl">Distortion</span>
+          <select id="q-dist-curve">
+            <option value="256">256 pt — Fast</option>
+            <option value="512">512 pt</option>
+            <option value="1024" selected>1024 pt — M2</option>
+            <option value="2048">2048 pt — Ultra</option>
+          </select>
+        </div>
+      </section>
+
     </div><!-- .sub-grid -->
   </div><!-- #tab-sub -->
 
