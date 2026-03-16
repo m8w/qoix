@@ -58,11 +58,14 @@ const Synth = (() => {
   const state = {
     masterVolume: 0.7,
     osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, voices: 1, unisonSpread: 20,
-            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 } },
+            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
+            fmFrom: 'none', fmIndex: 0.5 },
     osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, voices: 1, unisonSpread: 20,
-            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 } },
+            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
+            fmFrom: 'none', fmIndex: 0.5, mixMode: 'add' },
     osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, voices: 1, unisonSpread: 20,
-            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 } },
+            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
+            fmFrom: 'none', fmIndex: 0.5, mixMode: 'add' },
     noise: { enabled: false, type: 'white', level: 0.2 },
     env:  { attack: 0.01, decay: 0.1, sustain: 0.7, release: 0.3 },
     fenv: { amount: 2000, attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.2 },
@@ -351,8 +354,12 @@ const Synth = (() => {
     }
 
     const oscGroups = { osc1: [], osc2: [], osc3: [] };
+    const rawSums   = {};
 
-    function buildUnisonOsc(oscState, targetNode, group) {
+    // Build unison voices for one osc; returns a GainNode summing all voices (pre-filter)
+    function buildUnisonOsc(oscState, group) {
+      const rawSum  = ctx.createGain();
+      rawSum.gain.value = 1;
       const nVoices = Math.max(1, Math.round(oscState.voices || 1));
       const spread  = oscState.unisonSpread || 0;
       for (let v = 0; v < nVoices; v++) {
@@ -364,27 +371,78 @@ const Synth = (() => {
         osc.detune.value = oscState.detune + spreadOffset;
         gain.gain.value = oscState.level / nVoices;
         osc.connect(gain);
-        gain.connect(targetNode);
+        gain.connect(rawSum);
         osc.start(now);
         oscs.push(osc);
         group.push(osc);
+      }
+      return rawSum;
+    }
+
+    if (s.osc1.enabled) rawSums.osc1 = buildUnisonOsc(s.osc1, oscGroups.osc1);
+    if (s.osc2.enabled) rawSums.osc2 = buildUnisonOsc(s.osc2, oscGroups.osc2);
+    if (s.osc3.enabled) rawSums.osc3 = buildUnisonOsc(s.osc3, oscGroups.osc3);
+
+    // ── OSC-to-OSC FM routing ─────────────────────────────────
+    ['osc1', 'osc2', 'osc3'].forEach(tgtKey => {
+      const tgtState = s[tgtKey];
+      const srcKey   = tgtState.fmFrom;
+      if (!srcKey || srcKey === 'none' || !rawSums[srcKey] || !oscGroups[tgtKey].length) return;
+      const fmGain = ctx.createGain();
+      const baseFreq = freq * Math.pow(2, tgtState.octave);
+      fmGain.gain.value = (tgtState.fmIndex || 0) * baseFreq;
+      rawSums[srcKey].connect(fmGain);
+      oscGroups[tgtKey].forEach(o => fmGain.connect(o.frequency));
+    });
+
+    // ── Mix mode: route rawSum → [processing] → per-osc filter ──
+    function routeOscToFilter(rawSum, oscState, filterNode) {
+      const mode = oscState.mixMode || 'add';
+      if (mode === 'sub') {
+        const negGain = ctx.createGain();
+        negGain.gain.value = -1;
+        rawSum.connect(negGain);
+        negGain.connect(filterNode);
+      } else if (mode === 'ring' && rawSums.osc1 && rawSum !== rawSums.osc1) {
+        // Ring mod: osc1 amplitude-modulates this osc
+        const ringGain = ctx.createGain();
+        ringGain.gain.value = 0;
+        rawSums.osc1.connect(ringGain.gain);
+        rawSum.connect(ringGain);
+        ringGain.connect(filterNode);
+      } else if (mode === 'xor' && rawSums.osc1 && rawSum !== rawSums.osc1) {
+        // XOR approx: full-wave rectify(this - osc1)
+        const negA = ctx.createGain();
+        negA.gain.value = -1;
+        rawSums.osc1.connect(negA);
+        const diff = ctx.createGain();
+        rawSum.connect(diff);
+        negA.connect(diff);
+        const absShaper = ctx.createWaveShaper();
+        const absCurve = new Float32Array(512);
+        for (let i = 0; i < 512; i++) absCurve[i] = Math.abs((i / 511) * 2 - 1);
+        absShaper.curve = absCurve;
+        diff.connect(absShaper);
+        absShaper.connect(filterNode);
+      } else {
+        rawSum.connect(filterNode);
       }
     }
 
     if (s.osc1.enabled) {
       const f1 = makeOscFilter(s.osc1.filter, oscMixer);
-      buildUnisonOsc(s.osc1, f1, oscGroups.osc1);
       oscFilters.osc1 = f1;
+      rawSums.osc1.connect(f1);
     }
     if (s.osc2.enabled) {
       const f2 = makeOscFilter(s.osc2.filter, oscMixer);
-      buildUnisonOsc(s.osc2, f2, oscGroups.osc2);
       oscFilters.osc2 = f2;
+      routeOscToFilter(rawSums.osc2, s.osc2, f2);
     }
     if (s.osc3.enabled) {
       const f3 = makeOscFilter(s.osc3.filter, oscMixer);
-      buildUnisonOsc(s.osc3, f3, oscGroups.osc3);
       oscFilters.osc3 = f3;
+      routeOscToFilter(rawSums.osc3, s.osc3, f3);
     }
 
     if (s.noise.enabled) {

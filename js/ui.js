@@ -38,7 +38,7 @@ const UI = (() => {
     v = parseFloat(v);
     if (id.includes('level') || id.includes('sustain') || id.includes('mix') ||
         id.includes('damp')  || id.includes('density') || id.includes('notelen') ||
-        id.includes('swing') || id.includes('depth'))
+        id.includes('swing') || id.includes('depth') || id.includes('fm-index'))
       return `${Math.round(v * 100)}%`;
     if (id.includes('attack') || id.includes('decay') || id.includes('release') ||
         id.includes('time') && id.includes('delay'))
@@ -90,7 +90,7 @@ const UI = (() => {
       btn.addEventListener('click', () => {
         group.querySelectorAll('.wb').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        fn(btn.dataset.wave || btn.dataset.filter || btn.dataset.ftype || btn.dataset.wtmode || btn.dataset.wtset);
+        fn(btn.dataset.wave || btn.dataset.filter || btn.dataset.ftype || btn.dataset.wtmode || btn.dataset.wtset || btn.dataset.fmsrc || btn.dataset.mixmode);
       });
     });
   }
@@ -176,6 +176,7 @@ const UI = (() => {
     Synth.noteOn(midiNote, velocity);
     if (FMEngine.getState().enabled) FMEngine.noteOn(midiNote, velocity);
     if (WTEngine.getState().enabled) WTEngine.noteOn(midiNote, velocity);
+    Recorder.recordNoteOn(midiNote, velocity);
     updateActiveNotesDisplay();
   }
 
@@ -183,6 +184,7 @@ const UI = (() => {
     Synth.noteOff(midiNote);
     FMEngine.noteOff(midiNote);
     WTEngine.noteOff(midiNote);
+    Recorder.recordNoteOff(midiNote);
     updateActiveNotesDisplay();
   }
 
@@ -271,6 +273,18 @@ const UI = (() => {
       bindRange(`osc${n}-filt-resonance`, v => Synth.setOscFilter(key, 'resonance', parseFloat(v)));
       bindRange(`osc${n}-filt-lfodepth`,  v => Synth.setOscFilter(key, 'lfoDepth',  parseFloat(v)));
       bindRange(`osc${n}-filt-envamt`,    v => Synth.setOscFilter(key, 'envAmt',    parseFloat(v)));
+    });
+
+    // Per-OSC FM modulation
+    [1, 2, 3].forEach(n => {
+      const key = `osc${n}`;
+      bindWaveGroup(`[data-oscfm="${n}"]`,  v => Synth.setOsc(key, 'fmFrom', v));
+      bindRange(`osc${n}-fm-index`,         v => Synth.setOsc(key, 'fmIndex', parseFloat(v)));
+    });
+
+    // Per-OSC mix modes (osc2 and osc3)
+    [2, 3].forEach(n => {
+      bindWaveGroup(`[data-oscmix="${n}"]`, v => Synth.setOsc(`osc${n}`, 'mixMode', v));
     });
 
     const drawEnv = () => {
@@ -1256,6 +1270,93 @@ const UI = (() => {
     });
   }
 
+  // ── Session Recorder ──────────────────────────────────────
+  function bindRecorder() {
+    const recBtn   = $('rec-record-btn');
+    const stopBtn  = $('rec-stop-btn');
+    const playBtn  = $('rec-play-btn');
+    const saveBtn  = $('rec-save-btn');
+    const loadInp  = $('rec-load-input');
+    const statusEl = $('rec-status-msg');
+    const indEl    = $('rec-indicator');
+    const infoEl   = $('rec-info');
+
+    Recorder.setUpdateCallback(updateRecorderUI);
+
+    function updateRecorderUI() {
+      const rec  = Recorder.isRecording();
+      const play = Recorder.isPlaying();
+      const has  = Recorder.hasSession();
+
+      recBtn.disabled  = rec || play;
+      stopBtn.disabled = !rec && !play;
+      playBtn.disabled = !has || rec || play;
+      saveBtn.disabled = !has || rec || play;
+
+      recBtn.classList.toggle('rec-active', rec);
+      indEl.classList.toggle('rec-dot-active', rec || play);
+
+      if (rec)       statusEl.textContent = 'Recording…';
+      else if (play) statusEl.textContent = 'Playing back…';
+      else if (has)  statusEl.textContent = `Session ready — ${Recorder.getDuration().toFixed(1)}s, ${Recorder.getNoteCount()} notes`;
+      else           statusEl.textContent = 'Ready';
+
+      if (has) {
+        infoEl.style.display = '';
+        $('rec-duration').textContent = Recorder.getDuration().toFixed(2) + 's';
+        $('rec-note-count').textContent = Recorder.getNoteCount();
+      } else {
+        infoEl.style.display = 'none';
+      }
+    }
+
+    recBtn.addEventListener('click', () => {
+      Synth.ensureContext();
+      Recorder.startRecording();
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (Recorder.isRecording()) Recorder.stopRecording();
+      else if (Recorder.isPlaying()) Recorder.stopPlayback();
+    });
+
+    playBtn.addEventListener('click', () => {
+      Synth.ensureContext();
+      Recorder.startPlayback();
+    });
+
+    saveBtn.addEventListener('click', () => {
+      const name = ($('rec-session-name') || {}).value || 'qoix-session';
+      Recorder.saveSession(name);
+    });
+
+    if (loadInp) {
+      loadInp.addEventListener('change', () => {
+        const file = loadInp.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const session = Recorder.loadSession(e.target.result);
+            if ($('rec-session-name')) $('rec-session-name').value = session.name || 'Session';
+          } catch (err) {
+            alert('Could not load session: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+        loadInp.value = '';
+      });
+    }
+
+    // Expose piano key toggle for playback visualization
+    UI._setPianoKeyExternal = (note, active) => {
+      const el = document.querySelector(`[data-midi="${note}"]`);
+      if (el) el.classList.toggle('active', active);
+    };
+
+    updateRecorderUI();
+  }
+
   // ── Init ──────────────────────────────────────────────────
   function init() {
     Synth.init();
@@ -1272,6 +1373,7 @@ const UI = (() => {
     initPresets();
     initKeyboardInput();
     bindRenderer();
+    bindRecorder();
     syncUIToState();
     startVisualizer();
     drawEnvelope();

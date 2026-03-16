@@ -908,3 +908,47 @@ footer {
 .render-file-info {
   font-size: 0.7rem; color: var(--dim); text-align: center;
 }
+
+/* ── Session Recorder ────────────────────────────────────── */
+.rec-layout {
+  display: flex; gap: var(--gap); flex-wrap: wrap; padding: var(--gap);
+}
+.rec-transport-panel, .rec-io-panel { min-width: 240px; flex: 1; }
+
+.rec-transport {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.rec-btn {
+  padding: 10px 16px; border: none; border-radius: var(--radius);
+  font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s, background 0.15s;
+}
+.rec-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.rec-btn-record { background: var(--accent2); color: #fff; }
+.rec-btn-record.rec-active { background: #c0392b; box-shadow: 0 0 10px rgba(192,57,43,0.7); }
+.rec-btn-stop   { background: #555; color: #fff; }
+.rec-btn-play   { background: rgba(79,201,126,0.2); border: 1px solid var(--green); color: var(--green); }
+
+.rec-status-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  font-size: 0.8rem; color: var(--dim);
+}
+.rec-indicator {
+  width: 10px; height: 10px; border-radius: 50%; background: #555;
+  transition: background 0.2s;
+}
+.rec-dot-active { background: var(--accent2) !important; box-shadow: 0 0 6px var(--accent2); animation: recpulse 1s infinite; }
+@keyframes recpulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+.rec-info { margin-top: 8px; }
+
+.rec-io-btns {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
+}
+.rec-text-input {
+  flex: 1; background: var(--bg-inset); border: 1px solid var(--border);
+  color: var(--text); padding: 4px 8px; border-radius: var(--r-sm);
+  font-size: 0.82rem; min-width: 0;
+}
+.rec-load-label {
+  display: inline-block; cursor: pointer;
+}
