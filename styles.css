@@ -824,3 +824,87 @@ footer {
   color: var(--dim);
   border-top: 1px solid var(--border);
 }
+
+/* ══════════════════════════════════════════════════════════
+   RENDER TAB
+══════════════════════════════════════════════════════════ */
+.render-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--gap);
+  align-items: start;
+}
+@media (max-width: 900px) { .render-layout { grid-template-columns: 1fr; } }
+
+/* Drop zone */
+.render-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  margin-top: 8px;
+}
+.render-dropzone:hover, .render-dropzone.drag-over {
+  border-color: var(--accent);
+  background: rgba(91,103,216,0.08);
+}
+.rdz-icon { font-size: 2rem; margin-bottom: 8px; }
+.rdz-main { font-size: 0.82rem; color: var(--bright); font-weight: 600; }
+.rdz-sub  { font-size: 0.72rem; color: var(--dim); margin-top: 3px; }
+
+/* MIDI info */
+.render-info { margin-top: 12px; }
+.ri-row { display: flex; justify-content: space-between; align-items: baseline;
+          font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.ri-lbl { color: var(--dim); }
+.ri-row span:last-child { color: var(--bright); font-variant-numeric: tabular-nums; }
+
+/* Settings select */
+.rsel {
+  background: var(--bg-inset); border: 1px solid var(--border);
+  color: var(--text); border-radius: var(--r-sm); padding: 3px 6px;
+  font-size: 0.8rem; cursor: pointer;
+}
+.rsel:focus { border-color: var(--accent); outline: none; }
+
+/* Render button */
+.render-btn {
+  width: 100%; padding: 12px; font-size: 0.9rem; font-weight: 700;
+  background: linear-gradient(135deg, var(--accent) 0%, #3d4fb8 100%);
+  color: #fff; border: none; border-radius: var(--radius); cursor: pointer;
+  letter-spacing: 0.05em; transition: opacity 0.15s, transform 0.1s;
+  margin-bottom: 14px;
+}
+.render-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.render-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Progress */
+.render-progress-wrap { margin-bottom: 14px; }
+.render-progress-bar {
+  height: 6px; background: var(--bg-inset); border-radius: 3px;
+  overflow: hidden; border: 1px solid var(--border);
+}
+.render-progress-fill {
+  height: 100%; width: 0%; background: var(--accent);
+  border-radius: 3px; transition: width 0.3s;
+  box-shadow: 0 0 8px var(--glow);
+}
+.render-status-msg {
+  font-size: 0.72rem; color: var(--dim); margin-top: 5px; text-align: center;
+}
+
+/* Download */
+.render-download-btn {
+  display: block; text-align: center; padding: 10px;
+  background: rgba(79,201,126,0.15); border: 1px solid var(--green);
+  color: var(--green); border-radius: var(--radius); text-decoration: none;
+  font-size: 0.88rem; font-weight: 700; transition: background 0.15s;
+  margin-bottom: 8px;
+}
+.render-download-btn:hover { background: rgba(79,201,126,0.28); }
+.render-file-info {
+  font-size: 0.7rem; color: var(--dim); text-align: center;
+}

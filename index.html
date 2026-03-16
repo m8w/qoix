@@ -37,6 +37,7 @@
     <button class="tab-btn" data-tab="wt">Wavetable / Oxford</button>
     <button class="tab-btn" data-tab="matrix">Mod Matrix</button>
     <button class="tab-btn" data-tab="rand">Random Gen</button>
+    <button class="tab-btn" data-tab="render"><button class="tab-btn" data-tab="rand">Random Gen</button>#9654; Render</button>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════
@@ -567,6 +568,73 @@
     </div>
   </div><!-- #tab-rand -->
 
+  <!-- ══ Render Tab ═══════════════════════════════════ -->
+  <div class="tab-panel" id="tab-render">
+    <div class="render-layout">
+
+      <!-- Drop zone -->
+      <section class="panel render-drop-panel">
+        <h2>MIDI File</h2>
+        <div id="render-dropzone" class="render-dropzone">
+          <div class="rdz-icon"></div><!-- #tab-rand -->#127926;</div>
+          <div class="rdz-main">Drop a .mid file here</div>
+          <div class="rdz-sub">or click to browse</div>
+          <input type="file" id="render-file-input" accept=".mid,.midi" style="display:none" />
+        </div>
+        <div id="render-midi-info" class="render-info" style="display:none">
+          <div class="ri-row"><span class="ri-lbl">File</span><span id="ri-filename">—</span></div>
+          <div class="ri-row"><span class="ri-lbl">Duration</span><span id="ri-duration">—</span></div>
+          <div class="ri-row"><span class="ri-lbl">Notes</span><span id="ri-notes">—</span></div>
+          <div class="ri-row"><span class="ri-lbl">Format</span><span id="ri-format">—</span></div>
+          <div class="ri-row"><span class="ri-lbl">Tracks</span><span id="ri-tracks">—</span></div>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section class="panel render-settings-panel">
+        <h2>Render Settings</h2>
+        <div class="ctrl-row">
+          <span class="lbl">Sample Rate</span>
+          <select id="render-sr" class="rsel">
+            <option value="44100">44.1 kHz</option>
+            <option value="48000" selected>48 kHz</option>
+            <option value="88200">88.2 kHz</option>
+            <option value="96000">96 kHz (high quality)</option>
+          </select>
+        </div>
+        <div class="ctrl-row">
+          <span class="lbl">Bit Depth</span>
+          <select id="render-bd" class="rsel">
+            <option value="16">16-bit</option>
+            <option value="24" selected>24-bit</option>
+            <option value="32">32-bit float</option>
+          </select>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Tail (s)</span><input type="range" id="render-tail" min="1" max="20" step="0.5" value="5" /><span class="val" id="render-tail-v">5s</span></div>
+        <div class="section-sub">Patch</div>
+        <div class="ctrl-row ri-row"><span class="ri-lbl">Patch source</span><span style="color:var(--green);font-size:0.75rem">Current settings (live)</span></div>
+        <div class="ctrl-row ri-row" style="font-size:0.72rem;color:var(--dim)">Tweak your synth, then render — all OSC, filter, FX and mod settings are captured at render time.</div>
+      </section>
+
+      <!-- Render action -->
+      <section class="panel render-action-panel">
+        <h2>Render</h2>
+        <button id="render-start-btn" class="render-btn" disabled></div><!-- #tab-rand -->#9654;</div><!-- #tab-rand -->nbsp; Render to WAV</button>
+        <div id="render-progress-wrap" class="render-progress-wrap" style="display:none">
+          <div class="render-progress-bar"><div id="render-progress-fill" class="render-progress-fill"></div></div>
+          <div id="render-status-msg" class="render-status-msg">Preparing…</div>
+        </div>
+        <div id="render-download-wrap" class="render-download-wrap" style="display:none">
+          <a id="render-download-link" class="render-download-btn" download="qoix-render.wav"></div><!-- #tab-rand -->#8659;</div><!-- #tab-rand -->nbsp; Download WAV</a>
+          <div id="render-file-info" class="render-file-info"></div>
+        </div>
+        <div class="section-sub" style="margin-top:14px">Why offline?</div>
+        <div style="font-size:0.72rem;color:var(--dim);line-height:1.55;margin-top:6px">The offline renderer runs as fast as your CPU allows — no audio glitches, no voice stealing under load, full-density reverb, and perfect polyphony at any voice count. What live playback sometimes cannot deliver, the render always will.</div>
+      </section>
+
+    </div>
+  </div><!-- #tab-render -->
+
   <!-- ── Always-visible: Keyboard ───────────────────── -->
   <section class="keyboard-section">
     <div class="kbd-header">
@@ -593,6 +661,7 @@
 <script src="js/wavetable.js"></script>
 <script src="js/modmatrix.js"></script>
 <script src="js/randomgen.js"></script>
+<script src="js/renderer.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

@@ -1139,6 +1139,109 @@ const UI = (() => {
     if (cnt) cnt.textContent = used;
   }
 
+  // ── Offline Renderer UI ──────────────────────────────────
+  function bindRenderer() {
+    let parsedMidi = null;
+
+    const dropzone    = $('render-dropzone');
+    const fileInput   = $('render-file-input');
+    const renderBtn   = $('render-start-btn');
+    const progWrap    = $('render-progress-wrap');
+    const progFill    = $('render-progress-fill');
+    const statusMsg   = $('render-status-msg');
+    const dlWrap      = $('render-download-wrap');
+    const dlLink      = $('render-download-link');
+    const dlInfo      = $('render-file-info');
+    const midiInfo    = $('render-midi-info');
+
+    if (!dropzone) return;
+
+    // Drag-and-drop
+    dropzone.addEventListener('click',     () => fileInput.click());
+    dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+    dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop',      e  => {
+      e.preventDefault(); dropzone.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) loadMidiFile(f);
+    });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadMidiFile(fileInput.files[0]); });
+
+    function loadMidiFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          parsedMidi = Renderer.parseMidi(e.target.result);
+          parsedMidi._filename = file.name;
+          showMidiInfo(file.name, parsedMidi);
+          renderBtn.disabled = false;
+          dlWrap.style.display = 'none';
+        } catch(err) {
+          alert('Could not parse MIDI file: ' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function showMidiInfo(name, info) {
+      $('ri-filename').textContent = name;
+      const dur = info.duration;
+      $('ri-duration').textContent = dur < 60 ? dur.toFixed(1) + 's' : Math.floor(dur/60) + 'm ' + Math.round(dur%60) + 's';
+      $('ri-notes').textContent    = info.noteCount;
+      $('ri-format').textContent   = 'Type ' + info.format;
+      $('ri-tracks').textContent   = info.numTracks;
+      midiInfo.style.display       = '';
+    }
+
+    // Tail slider display
+    const tailEl = $('render-tail');
+    if (tailEl) {
+      tailEl.addEventListener('input', () => {
+        $('render-tail-v').textContent = tailEl.value + 's';
+      });
+    }
+
+    renderBtn.addEventListener('click', async () => {
+      if (!parsedMidi) return;
+      renderBtn.disabled = true;
+      progWrap.style.display = '';
+      dlWrap.style.display   = 'none';
+
+      const sr  = parseInt($('render-sr').value  || '48000');
+      const bd  = parseInt($('render-bd').value  || '24');
+      const tail = parseFloat($('render-tail')?.value || '5');
+
+      try {
+        const result = await Renderer.render(
+          parsedMidi.events,
+          Synth.getState(),
+          { sampleRate: sr, bitDepth: bd, tailSeconds: tail },
+          (pct, msg) => {
+            progFill.style.width = pct + '%';
+            statusMsg.textContent = msg || '';
+          }
+        );
+
+        // Build download link
+        const url = URL.createObjectURL(result.wavBlob);
+        const safeName = (parsedMidi._filename || 'render').replace(/\.[^.]+$/, '');
+        dlLink.href     = url;
+        dlLink.download = `qoix-${safeName}-${sr/1000}k-${bd}bit.wav`;
+        const mb = (result.wavBlob.size / 1024 / 1024).toFixed(1);
+        const durStr = result.duration < 60
+          ? result.duration.toFixed(1) + 's'
+          : Math.floor(result.duration/60) + 'm ' + Math.round(result.duration%60) + 's';
+        dlInfo.textContent = `${sr/1000} kHz · ${bd}-bit · ${durStr} · ${mb} MB`;
+        dlWrap.style.display = '';
+      } catch(err) {
+        statusMsg.textContent = 'Error: ' + err.message;
+        console.error('[QOIX Renderer]', err);
+      }
+
+      renderBtn.disabled = false;
+    });
+  }
+
   // ── Octave buttons ────────────────────────────────────────
   function bindOctaveButtons() {
     $('kbd-oct-dn').addEventListener('click', () => {
@@ -1168,6 +1271,7 @@ const UI = (() => {
     bindQuality();
     initPresets();
     initKeyboardInput();
+    bindRenderer();
     syncUIToState();
     startVisualizer();
     drawEnvelope();
