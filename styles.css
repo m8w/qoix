@@ -6,14 +6,14 @@
   --bg:       #0c0d11;
   --bg-panel: #14151b;
   --bg-inset: #09090d;
-  --border:   #252732;
+  --border:   #3e4158;
   --accent:   #5b67d8;
   --glow:     #7b86f5;
   --accent2:  #e05c5c;
   --green:    #4fc97e;
   --yellow:   #e6c84a;
-  --text:     #c8cade;
-  --dim:      #5a5d73;
+  --text:     #d6d8ec;
+  --dim:      #9095b4;
   --bright:   #eeeffe;
   --radius:   8px;
   --r-sm:     5px;
@@ -562,7 +562,7 @@ select:focus { outline: none; border-color: var(--accent); }
 .kbd-controls { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; }
 .kbd-controls .small { color: var(--dim); font-size: 0.75rem; }
 .kbd-controls strong { color: var(--bright); min-width: 18px; text-align: center; }
-.kbd-hint { color: #30313f; font-size: 0.65rem; font-style: italic; }
+.kbd-hint { color: var(--dim); font-size: 0.65rem; font-style: italic; }
 
 .piano {
   display: flex;
@@ -651,6 +651,6 @@ footer {
   text-align: center;
   padding: 8px;
   font-size: 0.68rem;
-  color: #252635;
+  color: var(--dim);
   border-top: 1px solid var(--border);
 }
