@@ -45,7 +45,7 @@ const UI = (() => {
       return v < 1 ? `${Math.round(v * 1000)}ms` : `${v.toFixed(2)}s`;
     if (id.includes('cutoff')) return v >= 1000 ? `${(v/1000).toFixed(1)}kHz` : `${Math.round(v)}Hz`;
     if (id.includes('resonance')) return v.toFixed(1);
-    if (id.includes('fenv-amount')) return (v >= 0 ? '+' : '') + Math.round(v) + 'Hz';
+    if (id.includes('fenv-amount') || id.includes('filt-envamt')) return (v >= 0 ? '+' : '') + Math.round(v) + 'Hz';
     if (id.includes('octave') || id.includes('oct') && !id.includes('chorus'))
       return v > 0 ? `+${v}` : `${v}`;
     if (id.includes('detune')) return `${v}¢`;
@@ -90,7 +90,7 @@ const UI = (() => {
       btn.addEventListener('click', () => {
         group.querySelectorAll('.wb').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        fn(btn.dataset.wave || btn.dataset.filter || btn.dataset.wtmode || btn.dataset.wtset);
+        fn(btn.dataset.wave || btn.dataset.filter || btn.dataset.ftype || btn.dataset.wtmode || btn.dataset.wtset);
       });
     });
   }
@@ -250,6 +250,16 @@ const UI = (() => {
     bindCheck('noise-enabled', v => Synth.setOsc('noise','enabled',v));
     bindWaveGroup('[data-osc="noise"]', v => Synth.setOsc('noise','type',v));
     bindRange('noise-level', v => Synth.setOsc('noise','level',parseFloat(v)));
+
+    // Per-OSC filters
+    [1, 2, 3].forEach(n => {
+      const key = `osc${n}`;
+      bindWaveGroup(`[data-oscfilt="${n}"]`, v => Synth.setOscFilter(key, 'type', v));
+      bindRange(`osc${n}-filt-cutoff`,    v => Synth.setOscFilter(key, 'cutoff',    parseFloat(v)));
+      bindRange(`osc${n}-filt-resonance`, v => Synth.setOscFilter(key, 'resonance', parseFloat(v)));
+      bindRange(`osc${n}-filt-lfodepth`,  v => Synth.setOscFilter(key, 'lfoDepth',  parseFloat(v)));
+      bindRange(`osc${n}-filt-envamt`,    v => Synth.setOscFilter(key, 'envAmt',    parseFloat(v)));
+    });
 
     const drawEnv = () => {
       bindRange('env-attack',  v => { Synth.setEnv('attack', parseFloat(v)); drawEnvelope(); });
@@ -891,6 +901,22 @@ const UI = (() => {
     sc('osc2-enabled', s.osc2.enabled);
     sw('data-osc="2"', s.osc2.wave);
     sr('osc2-octave', s.osc2.octave); sr('osc2-detune', s.osc2.detune); sr('osc2-level', s.osc2.level);
+
+    // Per-osc filter sync
+    [1, 2, 3].forEach(n => {
+      const fs = s[`osc${n}`] && s[`osc${n}`].filter;
+      if (!fs) return;
+      const container = document.querySelector(`[data-oscfilt="${n}"]`);
+      if (container) {
+        container.querySelectorAll('.wb').forEach(b => {
+          b.classList.toggle('active', b.dataset.ftype === fs.type);
+        });
+      }
+      sr(`osc${n}-filt-cutoff`,    fs.cutoff);
+      sr(`osc${n}-filt-resonance`, fs.resonance);
+      sr(`osc${n}-filt-lfodepth`,  fs.lfoDepth);
+      sr(`osc${n}-filt-envamt`,    fs.envAmt);
+    });
 
     sc('noise-enabled', s.noise.enabled);
     sw('data-osc="noise"', s.noise.type);

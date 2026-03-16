@@ -66,6 +66,20 @@
         <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="osc1-level" min="0" max="1" step="0.01" value="0.8" /><span class="val" id="osc1-level-v">80%</span></div>
         <div class="ctrl-row"><span class="lbl">Voices</span><input type="range" id="osc1-voices" min="1" max="8" step="1" value="1" /><span class="val" id="osc1-voices-v">1</span></div>
         <div class="ctrl-row"><span class="lbl">Spread</span><input type="range" id="osc1-spread" min="0" max="50" step="1" value="20" /><span class="val" id="osc1-spread-v">20¢</span></div>
+        <div class="section-sub">Filter</div>
+        <div class="ctrl-row">
+          <span class="lbl">Type</span>
+          <div class="wave-btns" data-oscfilt="1">
+            <button class="wb active" data-ftype="lowpass">LP</button>
+            <button class="wb" data-ftype="highpass">HP</button>
+            <button class="wb" data-ftype="bandpass">BP</button>
+            <button class="wb" data-ftype="notch">Ntch</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Cutoff</span><input type="range" id="osc1-filt-cutoff" min="20" max="20000" step="1" value="18000" /><span class="val" id="osc1-filt-cutoff-v">18kHz</span></div>
+        <div class="ctrl-row"><span class="lbl">Res</span><input type="range" id="osc1-filt-resonance" min="0.1" max="30" step="0.1" value="0.7" /><span class="val" id="osc1-filt-resonance-v">0.7</span></div>
+        <div class="ctrl-row"><span class="lbl">LFO→F</span><input type="range" id="osc1-filt-lfodepth" min="0" max="1" step="0.01" value="0" /><span class="val" id="osc1-filt-lfodepth-v">0%</span></div>
+        <div class="ctrl-row"><span class="lbl">Env→F</span><input type="range" id="osc1-filt-envamt" min="-10000" max="10000" step="10" value="0" /><span class="val" id="osc1-filt-envamt-v">0Hz</span></div>
       </section>
 
       <!-- OSC 2 -->
@@ -89,6 +103,20 @@
         <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="osc2-level" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="osc2-level-v">50%</span></div>
         <div class="ctrl-row"><span class="lbl">Voices</span><input type="range" id="osc2-voices" min="1" max="8" step="1" value="1" /><span class="val" id="osc2-voices-v">1</span></div>
         <div class="ctrl-row"><span class="lbl">Spread</span><input type="range" id="osc2-spread" min="0" max="50" step="1" value="20" /><span class="val" id="osc2-spread-v">20¢</span></div>
+        <div class="section-sub">Filter</div>
+        <div class="ctrl-row">
+          <span class="lbl">Type</span>
+          <div class="wave-btns" data-oscfilt="2">
+            <button class="wb active" data-ftype="lowpass">LP</button>
+            <button class="wb" data-ftype="highpass">HP</button>
+            <button class="wb" data-ftype="bandpass">BP</button>
+            <button class="wb" data-ftype="notch">Ntch</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Cutoff</span><input type="range" id="osc2-filt-cutoff" min="20" max="20000" step="1" value="18000" /><span class="val" id="osc2-filt-cutoff-v">18kHz</span></div>
+        <div class="ctrl-row"><span class="lbl">Res</span><input type="range" id="osc2-filt-resonance" min="0.1" max="30" step="0.1" value="0.7" /><span class="val" id="osc2-filt-resonance-v">0.7</span></div>
+        <div class="ctrl-row"><span class="lbl">LFO→F</span><input type="range" id="osc2-filt-lfodepth" min="0" max="1" step="0.01" value="0" /><span class="val" id="osc2-filt-lfodepth-v">0%</span></div>
+        <div class="ctrl-row"><span class="lbl">Env→F</span><input type="range" id="osc2-filt-envamt" min="-10000" max="10000" step="10" value="0" /><span class="val" id="osc2-filt-envamt-v">0Hz</span></div>
       </section>
 
       <!-- OSC 3 + Noise -->
@@ -112,6 +140,20 @@
         <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="osc3-level" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="osc3-level-v">50%</span></div>
         <div class="ctrl-row"><span class="lbl">Voices</span><input type="range" id="osc3-voices" min="1" max="8" step="1" value="1" /><span class="val" id="osc3-voices-v">1</span></div>
         <div class="ctrl-row"><span class="lbl">Spread</span><input type="range" id="osc3-spread" min="0" max="50" step="1" value="20" /><span class="val" id="osc3-spread-v">20¢</span></div>
+        <div class="section-sub">Filter</div>
+        <div class="ctrl-row">
+          <span class="lbl">Type</span>
+          <div class="wave-btns" data-oscfilt="3">
+            <button class="wb active" data-ftype="lowpass">LP</button>
+            <button class="wb" data-ftype="highpass">HP</button>
+            <button class="wb" data-ftype="bandpass">BP</button>
+            <button class="wb" data-ftype="notch">Ntch</button>
+          </div>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Cutoff</span><input type="range" id="osc3-filt-cutoff" min="20" max="20000" step="1" value="18000" /><span class="val" id="osc3-filt-cutoff-v">18kHz</span></div>
+        <div class="ctrl-row"><span class="lbl">Res</span><input type="range" id="osc3-filt-resonance" min="0.1" max="30" step="0.1" value="0.7" /><span class="val" id="osc3-filt-resonance-v">0.7</span></div>
+        <div class="ctrl-row"><span class="lbl">LFO→F</span><input type="range" id="osc3-filt-lfodepth" min="0" max="1" step="0.01" value="0" /><span class="val" id="osc3-filt-lfodepth-v">0%</span></div>
+        <div class="ctrl-row"><span class="lbl">Env→F</span><input type="range" id="osc3-filt-envamt" min="-10000" max="10000" step="10" value="0" /><span class="val" id="osc3-filt-envamt-v">0Hz</span></div>
         <div class="section-sub">Noise
           <label class="toggle-wrap" style="float:right;margin-top:-1px">
             <input type="checkbox" id="noise-enabled" /><span class="toggle"></span>
@@ -139,9 +181,9 @@
         <canvas id="env-canvas" width="280" height="72"></canvas>
       </section>
 
-      <!-- Filter -->
+      <!-- Master Filter -->
       <section class="panel" id="panel-filter">
-        <h2>Filter</h2>
+        <h2>Master Filter</h2>
         <div class="ctrl-row">
           <span class="lbl">Type</span>
           <div class="wave-btns ftype">

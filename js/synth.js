@@ -45,9 +45,12 @@ const Synth = (() => {
   // ── State ─────────────────────────────────────────────────
   const state = {
     masterVolume: 0.7,
-    osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, voices: 1, unisonSpread: 20 },
-    osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, voices: 1, unisonSpread: 20 },
-    osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, voices: 1, unisonSpread: 20 },
+    osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, voices: 1, unisonSpread: 20,
+            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 } },
+    osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, voices: 1, unisonSpread: 20,
+            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 } },
+    osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, voices: 1, unisonSpread: 20,
+            filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 } },
     noise: { enabled: false, type: 'white', level: 0.2 },
     env:  { attack: 0.01, decay: 0.1, sustain: 0.7, release: 0.3 },
     fenv: { amount: 2000, attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.2 },
@@ -278,13 +281,99 @@ const Synth = (() => {
     ampEnv.gain.linearRampToValueAtTime(velocity, now + s.env.attack);
     ampEnv.gain.linearRampToValueAtTime(s.env.sustain * velocity, now + s.env.attack + s.env.decay);
 
-    // Filter node
+    // Oscillators
+    const oscs = [];
+    // Per-osc filters keyed by osc name
+    const oscFilters = {};
+
+    // Mixer: merges all per-osc filter outputs before the master filter
+    const oscMixer = ctx.createGain();
+
+    function makeOscFilter(fState, targetNode) {
+      const f = ctx.createBiquadFilter();
+      f.type = fState.type;
+      f.frequency.setValueAtTime(fState.cutoff, now);
+      f.Q.value = fState.resonance;
+
+      // Per-osc filter envelope using global fenv ADSR shape scaled by envAmt
+      if (fState.envAmt !== 0) {
+        const base = fState.cutoff;
+        const amt  = fState.envAmt;
+        f.frequency.setValueAtTime(base, now);
+        f.frequency.linearRampToValueAtTime(
+          clamp(base + amt, 20, 20000), now + s.fenv.attack
+        );
+        f.frequency.linearRampToValueAtTime(
+          clamp(base + amt * s.fenv.sustain, 20, 20000),
+          now + s.fenv.attack + s.fenv.decay
+        );
+      }
+
+      // Per-osc filter LFO modulation (independent of global LFO target)
+      if (s.lfo.enabled && lfoOsc && fState.lfoDepth > 0) {
+        const lfoFiltGain = ctx.createGain();
+        lfoFiltGain.gain.value = fState.lfoDepth * s.lfo.depth * 5000;
+        lfoOsc.connect(lfoFiltGain);
+        lfoFiltGain.connect(f.frequency);
+      }
+
+      f.connect(targetNode);
+      return f;
+    }
+
+    function buildUnisonOsc(oscState, targetNode) {
+      const nVoices = Math.max(1, Math.round(oscState.voices || 1));
+      const spread  = oscState.unisonSpread || 0;
+      for (let v = 0; v < nVoices; v++) {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = oscState.wave;
+        osc.frequency.value = freq * Math.pow(2, oscState.octave);
+        const spreadOffset = nVoices > 1 ? ((v / (nVoices - 1)) - 0.5) * 2 * spread : 0;
+        osc.detune.value = oscState.detune + spreadOffset;
+        gain.gain.value = oscState.level / nVoices;
+        osc.connect(gain);
+        gain.connect(targetNode);
+        osc.start(now);
+        oscs.push(osc);
+      }
+    }
+
+    if (s.osc1.enabled) {
+      const f1 = makeOscFilter(s.osc1.filter, oscMixer);
+      buildUnisonOsc(s.osc1, f1);
+      oscFilters.osc1 = f1;
+    }
+    if (s.osc2.enabled) {
+      const f2 = makeOscFilter(s.osc2.filter, oscMixer);
+      buildUnisonOsc(s.osc2, f2);
+      oscFilters.osc2 = f2;
+    }
+    if (s.osc3.enabled) {
+      const f3 = makeOscFilter(s.osc3.filter, oscMixer);
+      buildUnisonOsc(s.osc3, f3);
+      oscFilters.osc3 = f3;
+    }
+
+    if (s.noise.enabled) {
+      const src = ctx.createBufferSource();
+      src.buffer = getNoiseBuffer(s.noise.type);
+      src.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.value = s.noise.level;
+      src.connect(gain);
+      gain.connect(oscMixer);
+      src.start(now);
+      oscs.push(src);
+    }
+
+    // Master filter
     const filter = ctx.createBiquadFilter();
     filter.type = s.filter.type;
     filter.frequency.setValueAtTime(s.filter.cutoff, now);
     filter.Q.value = s.filter.resonance;
 
-    // Filter envelope
+    // Master filter envelope
     const fEnvAmount = s.fenv.amount;
     if (fEnvAmount !== 0) {
       const baseCutoff = s.filter.cutoff;
@@ -298,50 +387,11 @@ const Synth = (() => {
       );
     }
 
-    // Oscillators
-    const oscs = [];
-
-    function buildUnisonOsc(oscState, targetFilter) {
-      const nVoices = Math.max(1, Math.round(oscState.voices || 1));
-      const spread  = oscState.unisonSpread || 0;
-      for (let v = 0; v < nVoices; v++) {
-        const osc  = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = oscState.wave;
-        osc.frequency.value = freq * Math.pow(2, oscState.octave);
-        const spreadOffset = nVoices > 1 ? ((v / (nVoices - 1)) - 0.5) * 2 * spread : 0;
-        osc.detune.value = oscState.detune + spreadOffset;
-        gain.gain.value = oscState.level / nVoices;
-        osc.connect(gain);
-        gain.connect(targetFilter);
-        osc.start(now);
-        oscs.push(osc);
-      }
-    }
-
-    if (s.osc1.enabled) buildUnisonOsc(s.osc1, filter);
-    if (s.osc2.enabled) buildUnisonOsc(s.osc2, filter);
-    if (s.osc3.enabled) buildUnisonOsc(s.osc3, filter);
-
-    if (s.noise.enabled) {
-      const src = ctx.createBufferSource();
-      src.buffer = getNoiseBuffer(s.noise.type);
-      src.loop = true;
-      const gain = ctx.createGain();
-      gain.gain.value = s.noise.level;
-      src.connect(gain);
-      gain.connect(filter);
-      src.start(now);
-      oscs.push(src);
-    }
-
-    // LFO
+    // LFO routing
     if (s.lfo.enabled && lfoOsc) {
       const lfoTarget = s.lfo.target;
       if (lfoTarget === 'pitch') {
-        oscs.forEach(o => {
-          if (o.detune) lfoGain.connect(o.detune);
-        });
+        oscs.forEach(o => { if (o.detune) lfoGain.connect(o.detune); });
       } else if (lfoTarget === 'filter') {
         lfoGain.connect(filter.frequency);
       } else if (lfoTarget === 'amplitude') {
@@ -349,10 +399,11 @@ const Synth = (() => {
       }
     }
 
+    oscMixer.connect(filter);
     filter.connect(ampEnv);
     ampEnv.connect(Synth._voiceDestination);
 
-    activeVoices.set(midiNote, { oscs, ampEnv, filter, startTime: now });
+    activeVoices.set(midiNote, { oscs, ampEnv, filter, oscFilters, startTime: now });
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
@@ -373,6 +424,17 @@ const Synth = (() => {
       voice.filter.frequency.cancelScheduledValues(now);
       voice.filter.frequency.setValueAtTime(voice.filter.frequency.value, now);
       voice.filter.frequency.linearRampToValueAtTime(state.filter.cutoff, now + fRel);
+    }
+
+    // Release per-osc filter envelopes
+    if (voice.oscFilters) {
+      ['osc1', 'osc2', 'osc3'].forEach(key => {
+        const f = voice.oscFilters[key];
+        if (!f || !state[key] || state[key].filter.envAmt === 0) return;
+        f.frequency.cancelScheduledValues(now);
+        f.frequency.setValueAtTime(f.frequency.value, now);
+        f.frequency.linearRampToValueAtTime(state[key].filter.cutoff, now + fRel);
+      });
     }
 
     const stopTime = now + rel + 0.05;
@@ -457,6 +519,19 @@ const Synth = (() => {
 
   function setFilter(param, value) {
     state.filter[param] = value;
+  }
+
+  function setOscFilter(oscKey, param, value) {
+    state[oscKey].filter[param] = value;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    activeVoices.forEach(voice => {
+      const f = voice.oscFilters && voice.oscFilters[oscKey];
+      if (!f) return;
+      if (param === 'cutoff')    f.frequency.setValueAtTime(value, now);
+      if (param === 'resonance') f.Q.value = value;
+      if (param === 'type')      f.type = value;
+    });
   }
 
   function setLFO(param, value) {
@@ -587,7 +662,7 @@ const Synth = (() => {
     noteOn, noteOff, panic,
     setMasterVolume,
     setOsc, setEnv, setFEnv,
-    setFilter, setLFO,
+    setFilter, setOscFilter, setLFO,
     setDistortion, setChorus, setDelay, setReverb,
     loadPreset,
     getState, getAnalyser, getActiveVoices,
