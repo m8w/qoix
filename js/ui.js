@@ -56,6 +56,8 @@ const UI = (() => {
     if (id.includes('bpm')) return `${Math.round(v)}`;
     if (id.includes('chord-size')) return `${Math.round(v)}`;
     if (id.includes('ratio')) return `${parseFloat(v).toFixed(2)}`;
+    if (id.includes('voices')) return `${Math.round(v)}`;
+    if (id.includes('spread')) return `${Math.round(v)}¢`;
     return `${v}`;
   }
 
@@ -115,7 +117,23 @@ const UI = (() => {
       const key = document.createElement('div');
       key.className = `key ${isBlack ? 'black' : 'white'}`;
       key.dataset.midi = midiNote;
-      key.textContent = hint;
+
+      if (!isBlack) {
+        // Show note name + keyboard hint on white keys
+        const noteName = NOTE_NAMES[semi % 12];
+        const octNum   = kbOctave + Math.floor(semi / 12);
+        const label = document.createElement('div');
+        label.className = 'key-label';
+        label.innerHTML =
+          `<div class="key-note">${noteName}${noteName === 'C' ? '<sub style="font-size:0.65em">' + octNum + '</sub>' : ''}</div>` +
+          (hint ? `<div class="key-hint">${hint}</div>` : '');
+        key.appendChild(label);
+      } else {
+        const hintEl = document.createElement('div');
+        hintEl.className = 'key-hint';
+        hintEl.textContent = hint;
+        key.appendChild(hintEl);
+      }
 
       const on = () => {
         Synth.ensureContext();
@@ -210,12 +228,24 @@ const UI = (() => {
     bindRange('osc1-octave', v => Synth.setOsc('osc1','octave',parseInt(v)));
     bindRange('osc1-detune', v => Synth.setOsc('osc1','detune',parseFloat(v)));
     bindRange('osc1-level',  v => Synth.setOsc('osc1','level', parseFloat(v)));
+    bindRange('osc1-voices', v => Synth.setOsc('osc1','voices', parseInt(v)));
+    bindRange('osc1-spread', v => Synth.setOsc('osc1','unisonSpread', parseFloat(v)));
 
     bindCheck('osc2-enabled', v => Synth.setOsc('osc2','enabled',v));
     bindWaveGroup('[data-osc="2"]', v => Synth.setOsc('osc2','wave',v));
     bindRange('osc2-octave', v => Synth.setOsc('osc2','octave',parseInt(v)));
     bindRange('osc2-detune', v => Synth.setOsc('osc2','detune',parseFloat(v)));
     bindRange('osc2-level',  v => Synth.setOsc('osc2','level', parseFloat(v)));
+    bindRange('osc2-voices', v => Synth.setOsc('osc2','voices', parseInt(v)));
+    bindRange('osc2-spread', v => Synth.setOsc('osc2','unisonSpread', parseFloat(v)));
+
+    bindCheck('osc3-enabled', v => Synth.setOsc('osc3','enabled',v));
+    bindWaveGroup('[data-osc="3"]', v => Synth.setOsc('osc3','wave',v));
+    bindRange('osc3-octave', v => Synth.setOsc('osc3','octave',parseInt(v)));
+    bindRange('osc3-detune', v => Synth.setOsc('osc3','detune',parseFloat(v)));
+    bindRange('osc3-level',  v => Synth.setOsc('osc3','level', parseFloat(v)));
+    bindRange('osc3-voices', v => Synth.setOsc('osc3','voices', parseInt(v)));
+    bindRange('osc3-spread', v => Synth.setOsc('osc3','unisonSpread', parseFloat(v)));
 
     bindCheck('noise-enabled', v => Synth.setOsc('noise','enabled',v));
     bindWaveGroup('[data-osc="noise"]', v => Synth.setOsc('noise','type',v));

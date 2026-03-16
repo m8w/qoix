@@ -35,6 +35,7 @@ const ModMatrix = (() => {
     { id: 'pan',         label: 'Pan',            defaultRange: 1    },
     { id: 'osc1_det',    label: 'OSC1 Detune',    defaultRange: 100  },   // cents
     { id: 'osc2_det',    label: 'OSC2 Detune',    defaultRange: 100  },
+    { id: 'osc3_det',    label: 'OSC3 Detune',    defaultRange: 100  },
     { id: 'fm_index',    label: 'FM Index',       defaultRange: 2    },
     { id: 'wt_pos',      label: 'WT Position',    defaultRange: 1    },
     { id: 'lfo1_rate',   label: 'LFO1 Rate',      defaultRange: 10   },   // Hz

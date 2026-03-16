@@ -45,8 +45,9 @@ const Synth = (() => {
   // ── State ─────────────────────────────────────────────────
   const state = {
     masterVolume: 0.7,
-    osc1: { enabled: true,  wave: 'sawtooth', octave: 0, detune: 0,  level: 0.8 },
-    osc2: { enabled: false, wave: 'square',   octave: 0, detune: 7,  level: 0.5 },
+    osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, voices: 1, unisonSpread: 20 },
+    osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, voices: 1, unisonSpread: 20 },
+    osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, voices: 1, unisonSpread: 20 },
     noise: { enabled: false, type: 'white', level: 0.2 },
     env:  { attack: 0.01, decay: 0.1, sustain: 0.7, release: 0.3 },
     fenv: { amount: 2000, attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.2 },
@@ -300,31 +301,27 @@ const Synth = (() => {
     // Oscillators
     const oscs = [];
 
-    if (s.osc1.enabled) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = s.osc1.wave;
-      osc.frequency.value = freq * Math.pow(2, s.osc1.octave);
-      osc.detune.value = s.osc1.detune;
-      gain.gain.value = s.osc1.level;
-      osc.connect(gain);
-      gain.connect(filter);
-      osc.start(now);
-      oscs.push(osc);
+    function buildUnisonOsc(oscState, targetFilter) {
+      const nVoices = Math.max(1, Math.round(oscState.voices || 1));
+      const spread  = oscState.unisonSpread || 0;
+      for (let v = 0; v < nVoices; v++) {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = oscState.wave;
+        osc.frequency.value = freq * Math.pow(2, oscState.octave);
+        const spreadOffset = nVoices > 1 ? ((v / (nVoices - 1)) - 0.5) * 2 * spread : 0;
+        osc.detune.value = oscState.detune + spreadOffset;
+        gain.gain.value = oscState.level / nVoices;
+        osc.connect(gain);
+        gain.connect(targetFilter);
+        osc.start(now);
+        oscs.push(osc);
+      }
     }
 
-    if (s.osc2.enabled) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = s.osc2.wave;
-      osc.frequency.value = freq * Math.pow(2, s.osc2.octave);
-      osc.detune.value = s.osc2.detune;
-      gain.gain.value = s.osc2.level;
-      osc.connect(gain);
-      gain.connect(filter);
-      osc.start(now);
-      oscs.push(osc);
-    }
+    if (s.osc1.enabled) buildUnisonOsc(s.osc1, filter);
+    if (s.osc2.enabled) buildUnisonOsc(s.osc2, filter);
+    if (s.osc3.enabled) buildUnisonOsc(s.osc3, filter);
 
     if (s.noise.enabled) {
       const src = ctx.createBufferSource();
