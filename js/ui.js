@@ -493,47 +493,63 @@ const UI = (() => {
     const grid = $('harmonic-grid');
     if (!grid) return;
     grid.innerHTML = '';
+
     for (let h = 0; h < 16; h++) {
+      const initVal = h === 0 ? 1 : 0;
+
       const col = document.createElement('div');
       col.className = 'harmonic-col';
 
       const lbl = document.createElement('label');
       lbl.textContent = `H${h + 1}`;
 
+      // Fader container: glowing bar behind + transparent-track slider on top
+      const fader = document.createElement('div');
+      fader.className = 'harm-fader';
+
+      const bar = document.createElement('div');
+      bar.className = 'harm-bar';
+      bar.style.height = `${initVal * 100}%`;
+
       const slider = document.createElement('input');
       slider.type = 'range';
-      slider.className = 'vslider';
+      slider.className = 'harm-slider';
       slider.min = 0; slider.max = 1; slider.step = 0.01;
-      slider.value = h === 0 ? 1 : 0;
+      slider.value = initVal;
+
+      fader.appendChild(bar);
+      fader.appendChild(slider);
 
       const val = document.createElement('span');
       val.className = 'val';
-      val.textContent = h === 0 ? '100%' : '0%';
+      val.textContent = initVal === 1 ? '100%' : '0%';
 
       slider.addEventListener('input', () => {
         const v = parseFloat(slider.value);
+        bar.style.height = `${v * 100}%`;
         val.textContent = `${Math.round(v * 100)}%`;
         WTEngine.setHarmonic(h, v);
         drawOxfordSpectrum();
       });
 
       col.appendChild(lbl);
-      col.appendChild(slider);
+      col.appendChild(fader);
       col.appendChild(val);
       grid.appendChild(col);
     }
 
-    // Oxford preset buttons
+    // Oxford preset buttons — sync bar heights too
     document.querySelectorAll('[data-oxford]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const preset = btn.dataset.oxford;
-        const harmonics = oxfordPreset(preset);
-        const sliders = grid.querySelectorAll('input[type="range"]');
-        sliders.forEach((sl, i) => {
+        const harmonics = oxfordPreset(btn.dataset.oxford);
+        grid.querySelectorAll('.harmonic-col').forEach((col, i) => {
           const v = i < harmonics.length ? harmonics[i] : 0;
-          sl.value = v;
-          const valEl = sl.nextElementSibling;
-          if (valEl) valEl.textContent = `${Math.round(v * 100)}%`;
+          const sl  = col.querySelector('.harm-slider');
+          const bar = col.querySelector('.harm-bar');
+          const vEl = col.querySelector('.val');
+          if (sl)  sl.value = v;
+          if (bar) bar.style.height = `${v * 100}%`;
+          if (vEl) vEl.textContent = `${Math.round(v * 100)}%`;
           WTEngine.setHarmonic(i, v);
         });
         drawOxfordSpectrum();

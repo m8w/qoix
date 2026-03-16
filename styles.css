@@ -426,7 +426,7 @@ select:focus { outline: none; border-color: var(--accent); }
 .harmonic-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 .harmonic-col {
   display: flex;
@@ -438,9 +438,90 @@ select:focus { outline: none; border-color: var(--accent); }
   border-radius: var(--r-sm);
   padding: 6px 4px;
 }
-.harmonic-col label { font-size: 0.62rem; color: var(--dim); }
-.harmonic-col input[type="range"] { height: 70px; }
-.harmonic-col .val { font-size: 0.62rem; text-align: center; width: auto; color: var(--glow); }
+.harmonic-col label { font-size: 0.72rem; color: var(--dim); font-weight: 600; }
+.harmonic-col .val  { font-size: 0.7rem; text-align: center; width: auto; color: var(--glow); font-weight: 600; }
+
+/* Combined fader: glowing bar + draggable thumb overlay */
+.harm-fader {
+  position: relative;
+  width: 28px;
+  height: 100px;
+  background: #06060a;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: ns-resize;
+}
+
+/* The glowing fill bar — rises from the bottom */
+.harm-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: linear-gradient(to top,
+    #1a1a90 0%,
+    var(--accent) 55%,
+    var(--glow) 88%,
+    #c8ccff 100%
+  );
+  box-shadow: 0 -3px 14px var(--accent), inset 0 0 10px rgba(123,134,245,0.25);
+  border-radius: 0 0 3px 3px;
+  pointer-events: none;
+  transition: height 0.04s ease-out;
+}
+
+/* Transparent-track slider sits on top of the bar */
+input[type="range"].harm-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent !important;
+  border: none !important;
+  outline: none;
+  z-index: 2;
+  cursor: ns-resize;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+input[type="range"].harm-slider::-webkit-slider-runnable-track {
+  background: transparent;
+  border: none;
+}
+input[type="range"].harm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 7px;
+  border-radius: 3px;
+  background: var(--bright);
+  border: 1px solid var(--glow);
+  box-shadow: 0 0 8px var(--accent), 0 1px 3px rgba(0,0,0,0.8);
+  cursor: ns-resize;
+}
+input[type="range"].harm-slider:hover::-webkit-slider-thumb {
+  background: #fff;
+  box-shadow: 0 0 14px var(--glow);
+}
+input[type="range"].harm-slider::-moz-range-track {
+  background: transparent;
+  border: none;
+}
+input[type="range"].harm-slider::-moz-range-thumb {
+  width: 26px;
+  height: 7px;
+  border-radius: 3px;
+  background: var(--bright);
+  border: 1px solid var(--glow);
+  box-shadow: 0 0 8px var(--accent);
+}
 
 .oxford-presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
 
