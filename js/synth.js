@@ -391,8 +391,24 @@ const Synth = (() => {
 
   // ── Panic ─────────────────────────────────────────────────
   function panic() {
-    activeVoices.forEach((_, note) => noteOff(note, true));
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // 1. Instantly silence the master output
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(0, now);
+
+    // 2. Hard-stop every oscillator node right now (no release tail)
+    activeVoices.forEach(voice => {
+      voice.oscs.forEach(o => { try { o.stop(now); } catch(e) {} });
+      try { voice.ampEnv.gain.cancelScheduledValues(now); } catch(e) {}
+      try { voice.ampEnv.disconnect(); } catch(e) {}
+    });
     activeVoices.clear();
+
+    // 3. Restore master gain after a brief pause (avoids click on re-play)
+    masterGain.gain.setValueAtTime(state.masterVolume, now + 0.08);
+
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
