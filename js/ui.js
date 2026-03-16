@@ -112,46 +112,58 @@ const UI = (() => {
   function buildPiano() {
     const pianoEl = $('piano');
     pianoEl.innerHTML = '';
-    PIANO_MAP.forEach(([semi, isBlack, hint]) => {
-      const midiNote = kbOctave * 12 + semi;
+
+    // Show C2 (MIDI 36) through C7 (MIDI 96) — 5 full octaves + final C
+    const START = 36; // C2
+    const END   = 96; // C7
+
+    // Build hint map: midiNote → keyboard character
+    const kbHints = {};
+    Object.entries(KEY_MAP).forEach(([k, offset]) => {
+      kbHints[kbOctave * 12 + offset] = k === "'" ? "'" : k.toUpperCase();
+    });
+
+    const BLACK_PATTERN = [false,true,false,true,false,false,true,false,true,false,true,false];
+
+    for (let note = START; note <= END; note++) {
+      const semi    = note % 12;
+      const octave  = Math.floor(note / 12) - 1;
+      const isBlack = BLACK_PATTERN[semi];
+      const hint    = kbHints[note] || '';
+
       const key = document.createElement('div');
       key.className = `key ${isBlack ? 'black' : 'white'}`;
-      key.dataset.midi = midiNote;
+      key.dataset.midi = note;
+      if (hint) key.classList.add('kb-range');
 
       if (!isBlack) {
-        // Show note name + keyboard hint on white keys
-        const noteName = NOTE_NAMES[semi % 12];
-        const octNum   = kbOctave + Math.floor(semi / 12);
         const label = document.createElement('div');
         label.className = 'key-label';
-        label.innerHTML =
-          `<div class="key-note">${noteName}${noteName === 'C' ? '<sub style="font-size:0.65em">' + octNum + '</sub>' : ''}</div>` +
-          (hint ? `<div class="key-hint">${hint}</div>` : '');
-        key.appendChild(label);
-      } else {
+        // Only show note name on C notes
+        const nameHtml = semi === 0
+          ? `<div class="key-note">C<sub style="font-size:0.58em">${octave}</sub></div>`
+          : '';
+        const hintHtml = hint ? `<div class="key-hint">${hint}</div>` : '';
+        if (nameHtml || hintHtml) {
+          label.innerHTML = nameHtml + hintHtml;
+          key.appendChild(label);
+        }
+      } else if (hint) {
         const hintEl = document.createElement('div');
         hintEl.className = 'key-hint';
         hintEl.textContent = hint;
         key.appendChild(hintEl);
       }
 
-      const on = () => {
-        Synth.ensureContext();
-        playNote(midiNote, 0.88);
-        key.classList.add('active');
-      };
-      const off = () => {
-        releaseNote(midiNote);
-        key.classList.remove('active');
-      };
-
-      key.addEventListener('mousedown', e => { e.preventDefault(); on(); });
-      key.addEventListener('mouseup', off);
+      const on  = () => { Synth.ensureContext(); playNote(note, 0.88); key.classList.add('active'); };
+      const off = () => { releaseNote(note); key.classList.remove('active'); };
+      key.addEventListener('mousedown',  e => { e.preventDefault(); on(); });
+      key.addEventListener('mouseup',    off);
       key.addEventListener('mouseleave', () => { if (key.classList.contains('active')) off(); });
       key.addEventListener('touchstart', e => { e.preventDefault(); on(); }, { passive: false });
-      key.addEventListener('touchend', () => off());
+      key.addEventListener('touchend',   () => off());
       pianoEl.appendChild(key);
-    });
+    }
   }
 
   function setPianoKey(midiNote, active) {

@@ -694,7 +694,7 @@ input[type="range"].harm-slider::-moz-range-thumb {
 .keyboard-section {
   background: #090d0b;
   border-top: 1px solid var(--border);
-  padding: 10px 16px 12px;
+  padding: 8px 8px 10px;
 }
 .kbd-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -709,23 +709,24 @@ input[type="range"].harm-slider::-moz-range-thumb {
 .piano {
   display: flex;
   position: relative;
-  height: 130px;
+  height: 124px;
   user-select: none;
   overflow-x: auto;
+  /* 5.1 octaves × 7 white keys = 36 white keys × 32px ≈ 1152px — fits 1200+ screens */
 }
 .key {
   position: relative;
   cursor: pointer;
-  border-radius: 0 0 5px 5px;
+  border-radius: 0 0 4px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  padding-bottom: 6px;
+  padding-bottom: 5px;
   transition: background 0.04s;
 }
 .key.white {
-  width: 38px; height: 130px;
+  width: 32px; height: 124px;
   background: linear-gradient(180deg, #dde 0%, #f9f9fb 100%);
   border: 1px solid #aab;
   flex-shrink: 0;
@@ -733,43 +734,48 @@ input[type="range"].harm-slider::-moz-range-thumb {
 }
 .key.white:hover  { background: linear-gradient(180deg, #cce 0%, #eef 100%); }
 .key.white.active { background: linear-gradient(180deg, var(--accent) 0%, var(--glow) 100%); }
+/* Subtle teal tint on keys within the current keyboard-shortcut octave */
+.key.white.kb-range  { background: linear-gradient(180deg, #c8ddd8 0%, #eef8f5 100%); }
+.key.white.kb-range:hover { background: linear-gradient(180deg, #b8d0ca 0%, #e0f0eb 100%); }
 
 .key.black {
-  width: 24px; height: 80px;
-  background: linear-gradient(180deg, #28282e 0%, #18181c 100%);
+  width: 20px; height: 76px;
+  background: linear-gradient(180deg, #242430 0%, #16161e 100%);
   border: 1px solid #111;
-  margin-left: -12px;
-  margin-right: -12px;
+  margin-left: -10px;
+  margin-right: -10px;
   z-index: 2;
   flex-shrink: 0;
   justify-content: flex-end;
   padding-bottom: 4px;
 }
-.key.black:hover  { background: linear-gradient(180deg, #383848 0%, #28283a 100%); }
+.key.black:hover  { background: linear-gradient(180deg, #343448 0%, #242430 100%); }
 .key.black.active { background: linear-gradient(180deg, var(--accent) 0%, #3030e0 100%); }
+.key.black.kb-range { background: linear-gradient(180deg, #1e3030 0%, #122020 100%); }
 
 /* Key label: note name + keyboard hint */
 .key-label { display: flex; flex-direction: column; align-items: center; gap: 0; line-height: 1; }
 .key-note {
-  font-size: 1rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  color: #888;
+  color: #7a9a94;
   line-height: 1;
 }
 .key.white.active .key-note { color: #fff; }
 .key-hint {
-  font-size: 0.68rem;
-  color: #bbb;
+  font-size: 0.6rem;
+  color: #b0b0c8;
   line-height: 1;
   margin-top: 2px;
 }
-.key.white.active .key-hint { color: rgba(255,255,255,0.8); }
+.key.white.active .key-hint { color: rgba(255,255,255,0.9); }
 .key.black .key-hint {
-  font-size: 0.62rem;
-  color: #4a4a58;
+  font-size: 0.55rem;
+  color: #3a5050;
   font-weight: 700;
 }
-.key.black.active .key-hint { color: rgba(255,255,255,0.75); }
+.key.black.kb-range .key-hint { color: #4a8070; }
+.key.black.active .key-hint   { color: rgba(255,255,255,0.85); }
 
 /* ── Quality panel ───────────────────────────────────────── */
 .quality-meters {
