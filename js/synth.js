@@ -29,13 +29,25 @@ const Synth = (() => {
   let lfoOsc = null;
   let lfoGain = null;
 
+  // ── Mod matrix bus (ConstantSourceNodes, persistent) ─────
+  let modBusPitch     = null;   // → all osc detune  (cents)
+  let modBusFilterCut = null;   // → master filter freq (Hz)
+  let modBusOsc1Det   = null;   // → osc1 detune (cents)
+  let modBusOsc2Det   = null;
+  let modBusOsc3Det   = null;
+
+  // Mod matrix JS state
+  let jsLFOPhase    = 0;
+  let _lastNoteVal  = 0;   // 0..1
+  let _lastVelVal   = 0;   // 0..1
+
   // ── Active voices ─────────────────────────────────────────
   const activeVoices = new Map(); // midiNote -> voice object
 
   // ── Quality / performance settings ───────────────────────
   // Defaults tuned for M2 Mac; reduce for lower-end hardware
   const quality = {
-    maxVoices:    32,      // polyphony limit (voice stealing kicks in above this)
+    maxVoices:    64,      // polyphony limit (voice stealing kicks in above this)
     fftSize:      4096,    // analyser resolution (must be power of 2, max 32768)
     reverbDense:  true,    // use denser early-reflection IR (more CPU, better quality)
     distCurve:    1024,    // distortion waveshaper table resolution
@@ -76,6 +88,20 @@ const Synth = (() => {
     buildEffectChain();
 
     masterGain.connect(ctx.destination);
+
+    // Mod matrix ConstantSource buses
+    function makeModBus() {
+      const cs = ctx.createConstantSource();
+      cs.offset.value = 0;
+      cs.start();
+      return cs;
+    }
+    modBusPitch     = makeModBus();
+    modBusFilterCut = makeModBus();
+    modBusOsc1Det   = makeModBus();
+    modBusOsc2Det   = makeModBus();
+    modBusOsc3Det   = makeModBus();
+
     console.log(`[QOIX] Audio engine initialized — ${ctx.sampleRate}Hz, ${quality.maxVoices} voices, FFT ${quality.fftSize}`);
   }
 
@@ -271,6 +297,9 @@ const Synth = (() => {
     if (activeVoices.has(midiNote)) noteOff(midiNote, true);
     stealVoiceIfNeeded();
 
+    _lastNoteVal = midiNote / 127;
+    _lastVelVal  = velocity;
+
     const freq = midiToFreq(midiNote);
     const now = ctx.currentTime;
     const s = state;
@@ -321,7 +350,9 @@ const Synth = (() => {
       return f;
     }
 
-    function buildUnisonOsc(oscState, targetNode) {
+    const oscGroups = { osc1: [], osc2: [], osc3: [] };
+
+    function buildUnisonOsc(oscState, targetNode, group) {
       const nVoices = Math.max(1, Math.round(oscState.voices || 1));
       const spread  = oscState.unisonSpread || 0;
       for (let v = 0; v < nVoices; v++) {
@@ -336,22 +367,23 @@ const Synth = (() => {
         gain.connect(targetNode);
         osc.start(now);
         oscs.push(osc);
+        group.push(osc);
       }
     }
 
     if (s.osc1.enabled) {
       const f1 = makeOscFilter(s.osc1.filter, oscMixer);
-      buildUnisonOsc(s.osc1, f1);
+      buildUnisonOsc(s.osc1, f1, oscGroups.osc1);
       oscFilters.osc1 = f1;
     }
     if (s.osc2.enabled) {
       const f2 = makeOscFilter(s.osc2.filter, oscMixer);
-      buildUnisonOsc(s.osc2, f2);
+      buildUnisonOsc(s.osc2, f2, oscGroups.osc2);
       oscFilters.osc2 = f2;
     }
     if (s.osc3.enabled) {
       const f3 = makeOscFilter(s.osc3.filter, oscMixer);
-      buildUnisonOsc(s.osc3, f3);
+      buildUnisonOsc(s.osc3, f3, oscGroups.osc3);
       oscFilters.osc3 = f3;
     }
 
@@ -403,7 +435,20 @@ const Synth = (() => {
     filter.connect(ampEnv);
     ampEnv.connect(Synth._voiceDestination);
 
-    activeVoices.set(midiNote, { oscs, ampEnv, filter, oscFilters, startTime: now });
+    // Connect mod matrix buses (ConstantSourceNodes add to AudioParam automation)
+    const modBusConns = [];
+    function conn(bus, param) {
+      if (!bus) return;
+      bus.connect(param);
+      modBusConns.push({ node: bus, param });
+    }
+    [...oscGroups.osc1, ...oscGroups.osc2, ...oscGroups.osc3].forEach(o => conn(modBusPitch, o.detune));
+    oscGroups.osc1.forEach(o => conn(modBusOsc1Det, o.detune));
+    oscGroups.osc2.forEach(o => conn(modBusOsc2Det, o.detune));
+    oscGroups.osc3.forEach(o => conn(modBusOsc3Det, o.detune));
+    conn(modBusFilterCut, filter.frequency);
+
+    activeVoices.set(midiNote, { oscs, oscGroups, ampEnv, filter, oscFilters, modBusConns, startTime: now });
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
@@ -415,6 +460,13 @@ const Synth = (() => {
     const now = ctx.currentTime;
     const rel = immediate ? 0.02 : state.env.release;
     const fRel = immediate ? 0.02 : state.fenv.release;
+
+    // Disconnect mod matrix buses from this voice's params
+    if (voice.modBusConns) {
+      voice.modBusConns.forEach(({ node, param }) => {
+        try { node.disconnect(param); } catch(e) {}
+      });
+    }
 
     voice.ampEnv.gain.cancelScheduledValues(now);
     voice.ampEnv.gain.setValueAtTime(voice.ampEnv.gain.value, now);
@@ -598,6 +650,53 @@ const Synth = (() => {
     }
   }
 
+  // ── Mod matrix application (called each animation frame) ──
+  function applyModMatrix(dt) {
+    if (!ctx || !modBusPitch) return;
+
+    // JS-tracked LFO phase (mirrors the Web Audio LFO for mod matrix input)
+    if (state.lfo.enabled) jsLFOPhase += state.lfo.rate * dt * Math.PI * 2;
+    const lfo1Val = state.lfo.enabled ? Math.sin(jsLFOPhase) : 0;
+
+    // Approximate envelope value from oldest active voice
+    let envVal = 0;
+    if (activeVoices.size > 0) {
+      const voice = activeVoices.values().next().value;
+      const age = ctx.currentTime - voice.startTime;
+      const { attack, decay, sustain } = state.env;
+      if      (age < attack)          envVal = age / attack;
+      else if (age < attack + decay)  envVal = 1 - (1 - sustain) * (age - attack) / decay;
+      else                            envVal = sustain;
+    }
+
+    ModMatrix.tick(dt, lfo1Val, envVal, _lastNoteVal, _lastVelVal);
+
+    const mv  = ModMatrix.modValues;
+    const now = ctx.currentTime;
+
+    // Helper: look up defaultRange for a destination
+    const getRange = id => (ModMatrix.DESTINATIONS.find(d => d.id === id) || {}).defaultRange || 1;
+
+    // ConstantSource offsets (additive on top of existing automation)
+    modBusPitch    .offset.setValueAtTime(mv.pitch     * getRange('pitch')      * 100, now); // semitones→cents
+    modBusFilterCut.offset.setValueAtTime(mv.filter_cut * getRange('filter_cut'),       now); // Hz
+    modBusOsc1Det  .offset.setValueAtTime(mv.osc1_det   * getRange('osc1_det'),         now); // cents
+    modBusOsc2Det  .offset.setValueAtTime(mv.osc2_det   * getRange('osc2_det'),         now);
+    modBusOsc3Det  .offset.setValueAtTime(mv.osc3_det   * getRange('osc3_det'),         now);
+
+    // Filter resonance — direct (no conflict with envelope)
+    if (mv.filter_res !== 0) {
+      activeVoices.forEach(voice => {
+        voice.filter.Q.value = clamp(state.filter.resonance + mv.filter_res * getRange('filter_res'), 0.1, 30);
+      });
+    }
+
+    // LFO1 rate
+    if (lfoOsc && mv.lfo1_rate !== 0) {
+      lfoOsc.frequency.setValueAtTime(clamp(state.lfo.rate + mv.lfo1_rate * getRange('lfo1_rate'), 0.01, 30), now);
+    }
+  }
+
   // ── Load preset ───────────────────────────────────────────
   function loadPreset(preset) {
     // Deep merge preset into state
@@ -662,7 +761,7 @@ const Synth = (() => {
     noteOn, noteOff, panic,
     setMasterVolume,
     setOsc, setEnv, setFEnv,
-    setFilter, setOscFilter, setLFO,
+    setFilter, setOscFilter, setLFO, applyModMatrix,
     setDistortion, setChorus, setDelay, setReverb,
     loadPreset,
     getState, getAnalyser, getActiveVoices,

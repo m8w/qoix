@@ -686,63 +686,75 @@ const UI = (() => {
 
     const { SOURCES, DESTINATIONS } = ModMatrix;
 
-    // Header row
+    // Header
     const thead = document.createElement('thead');
-    const hRow = document.createElement('tr');
-    const thSrc = document.createElement('th');
-    thSrc.textContent = 'Source \\ Dest';
-    hRow.appendChild(thSrc);
+    const hRow  = document.createElement('tr');
+    const corner = document.createElement('th');
+    corner.textContent = 'SRC ↓  DST →';
+    corner.className = 'mm-corner';
+    hRow.appendChild(corner);
     DESTINATIONS.forEach(dst => {
       const th = document.createElement('th');
       th.textContent = dst.label;
+      th.className = 'mm-dh';
       hRow.appendChild(th);
     });
     thead.appendChild(hRow);
     table.appendChild(thead);
 
-    // Body rows
+    // Body
     const tbody = document.createElement('tbody');
     SOURCES.forEach(src => {
       const row = document.createElement('tr');
+
       const tdLabel = document.createElement('td');
-      tdLabel.className = 'src-label';
+      tdLabel.className = 'mm-src';
       tdLabel.textContent = src.label;
       row.appendChild(tdLabel);
 
       DESTINATIONS.forEach(dst => {
-        const td = document.createElement('td');
+        const td   = document.createElement('td');
         const cell = ModMatrix.getCell(src.id, dst.id);
 
-        const wrap = document.createElement('div');
-        wrap.className = 'matrix-cell';
+        // Toggle dot
+        const dot = document.createElement('button');
+        dot.className = 'mm-dot' + (cell.enabled ? ' active' : '');
+        dot.title = `${src.label} → ${dst.label}`;
 
-        const chk = document.createElement('input');
-        chk.type = 'checkbox';
-        chk.checked = cell.enabled;
-        chk.title = `Enable ${src.label} → ${dst.label}`;
-
+        // Amount slider
         const slider = document.createElement('input');
         slider.type = 'range';
+        slider.className = 'mm-amt';
         slider.min = -1; slider.max = 1; slider.step = 0.01;
         slider.value = cell.amount;
 
-        const valSpan = document.createElement('span');
-        valSpan.className = 'cell-val';
-        valSpan.textContent = cell.amount.toFixed(2);
+        // Amount value display
+        const val = document.createElement('span');
+        val.className = 'mm-val';
+        const amtPct = Math.round(cell.amount * 100);
+        val.textContent = (amtPct >= 0 ? '+' : '') + amtPct + '%';
+        val.style.color = cell.amount > 0 ? 'var(--green)' : cell.amount < 0 ? 'var(--accent2)' : 'var(--dim)';
 
-        chk.addEventListener('change', () => {
-          ModMatrix.setCellEnabled(src.id, dst.id, chk.checked);
+        if (cell.enabled) td.classList.add('mm-on');
+
+        dot.addEventListener('click', () => {
+          const now = !ModMatrix.getCell(src.id, dst.id).enabled;
+          ModMatrix.setCellEnabled(src.id, dst.id, now);
+          dot.classList.toggle('active', now);
+          td.classList.toggle('mm-on', now);
         });
+
         slider.addEventListener('input', () => {
           const v = parseFloat(slider.value);
-          valSpan.textContent = v.toFixed(2);
+          const pct = Math.round(v * 100);
+          val.textContent = (pct >= 0 ? '+' : '') + pct + '%';
+          val.style.color = v > 0 ? 'var(--green)' : v < 0 ? 'var(--accent2)' : 'var(--dim)';
           ModMatrix.setCellAmount(src.id, dst.id, v);
         });
 
-        wrap.appendChild(chk);
-        wrap.appendChild(slider);
-        wrap.appendChild(valSpan);
-        td.appendChild(wrap);
+        td.appendChild(dot);
+        td.appendChild(slider);
+        td.appendChild(val);
         row.appendChild(td);
       });
 
@@ -996,8 +1008,16 @@ const UI = (() => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    function draw() {
+    let lastDrawTs = 0;
+
+    function draw(ts) {
       requestAnimationFrame(draw);
+      const dt = lastDrawTs > 0 ? Math.min((ts - lastDrawTs) / 1000, 0.05) : 1 / 60;
+      lastDrawTs = ts;
+
+      // Drive mod matrix each frame
+      Synth.applyModMatrix(dt);
+
       const analyser = Synth.getAnalyser();
       if (!analyser) return;
       const W = canvas.width, H = canvas.height;
@@ -1038,7 +1058,7 @@ const UI = (() => {
         if (el) el.textContent = (ModMatrix.sourceValues[src.id] || 0).toFixed(2);
       });
     }
-    draw();
+    requestAnimationFrame(draw);
   }
 
   // ── Quality panel ─────────────────────────────────────────
