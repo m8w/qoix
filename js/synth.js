@@ -506,7 +506,7 @@ const Synth = (() => {
     oscGroups.osc3.forEach(o => conn(modBusOsc3Det, o.detune));
     conn(modBusFilterCut, filter.frequency);
 
-    activeVoices.set(midiNote, { oscs, oscGroups, ampEnv, filter, oscFilters, modBusConns, startTime: now });
+    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, modBusConns, startTime: now });
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
@@ -552,13 +552,17 @@ const Synth = (() => {
       try { o.stop(stopTime); } catch (e) { /* ignore */ }
     });
 
+    // Keep voice in activeVoices until release is fully done so panic() can reach it.
+    // The note is removed from the active-notes display immediately but the audio nodes
+    // remain tracked so they can be hard-killed if needed.
+    UI && UI.updateActiveNotes && UI.updateActiveNotes();
     setTimeout(() => {
       activeVoices.delete(midiNote);
-      UI && UI.updateActiveNotes && UI.updateActiveNotes();
-    }, (rel + 0.1) * 1000);
-
-    activeVoices.delete(midiNote);
-    UI && UI.updateActiveNotes && UI.updateActiveNotes();
+      // Disconnect the remaining chain after release tail to free memory
+      try { voice.oscMixer.disconnect(); } catch(e) {}
+      try { voice.filter.disconnect();   } catch(e) {}
+      try { voice.ampEnv.disconnect();   } catch(e) {}
+    }, (rel + 0.15) * 1000);
   }
 
   // ── Panic ─────────────────────────────────────────────────
@@ -566,20 +570,31 @@ const Synth = (() => {
     if (!ctx) return;
     const now = ctx.currentTime;
 
-    // 1. Instantly silence the master output
+    // 1. Instantly silence master output
     masterGain.gain.cancelScheduledValues(now);
     masterGain.gain.setValueAtTime(0, now);
 
-    // 2. Hard-stop every oscillator node right now (no release tail)
+    // 2. Hard-kill every tracked voice (including those in release phase)
     activeVoices.forEach(voice => {
+      // Disconnect mod matrix buses
+      if (voice.modBusConns) {
+        voice.modBusConns.forEach(({ node, param }) => { try { node.disconnect(param); } catch(e) {} });
+      }
+      // Stop all source nodes immediately
       voice.oscs.forEach(o => { try { o.stop(now); } catch(e) {} });
+      // Sever the entire per-voice signal chain from top to bottom
+      try { voice.oscMixer.disconnect(); } catch(e) {}
+      if (voice.oscFilters) {
+        Object.values(voice.oscFilters).forEach(f => { try { f.disconnect(); } catch(e) {} });
+      }
+      try { voice.filter.disconnect(); } catch(e) {}
       try { voice.ampEnv.gain.cancelScheduledValues(now); } catch(e) {}
       try { voice.ampEnv.disconnect(); } catch(e) {}
     });
     activeVoices.clear();
 
-    // 3. Restore master gain after a brief pause (avoids click on re-play)
-    masterGain.gain.setValueAtTime(state.masterVolume, now + 0.08);
+    // 3. Restore master gain with a very short anti-click ramp
+    masterGain.gain.linearRampToValueAtTime(state.masterVolume, now + 0.025);
 
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
