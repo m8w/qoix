@@ -4360,7 +4360,8 @@ const UI = (() => {
       key.addEventListener('mouseup',    off);
       key.addEventListener('mouseleave', () => { if (key.classList.contains('active')) off(); });
       key.addEventListener('touchstart', e => { e.preventDefault(); on(); }, { passive: false });
-      key.addEventListener('touchend',   () => off());
+      key.addEventListener('touchend',    e => { e.preventDefault(); off(); }, { passive: false });
+      key.addEventListener('touchcancel', e => { e.preventDefault(); off(); }, { passive: false });
       pianoEl.appendChild(key);
     }
   }
@@ -5581,6 +5582,41 @@ const UI = (() => {
     ['click','keydown','touchstart'].forEach(evt => {
       document.addEventListener(evt, () => Synth.ensureContext(), { once: true, passive: true });
     });
+
+    // Global safety net: release all notes if touch is cancelled at the system level
+    // (e.g. notification banner, scroll gesture, phone call) or page goes hidden.
+    document.addEventListener('touchcancel', () => panicAll(), { passive: true });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) panicAll(); });
+
+    // Fix slide-between-keys: track which piano key each touch is currently over
+    // and fire on/off as fingers move across keys.
+    const _touchNotes = new Map(); // touchId -> midiNote currently sounding
+    document.addEventListener('touchmove', e => {
+      for (const touch of e.changedTouches) {
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const keyEl = el && el.closest('[data-midi]');
+        const newNote = keyEl ? parseInt(keyEl.dataset.midi) : null;
+        const oldNote = _touchNotes.get(touch.identifier);
+        if (oldNote !== newNote) {
+          if (oldNote != null) { releaseNote(oldNote); keyEl && keyEl.classList.remove('active'); const old = document.querySelector(`[data-midi="${oldNote}"]`); if (old) old.classList.remove('active'); }
+          if (newNote != null) { Synth.ensureContext(); playNote(newNote, 0.88); keyEl.classList.add('active'); _touchNotes.set(touch.identifier, newNote); }
+          else { _touchNotes.delete(touch.identifier); }
+        }
+      }
+    }, { passive: true });
+    document.addEventListener('touchstart', e => {
+      for (const touch of e.changedTouches) {
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const keyEl = el && el.closest('[data-midi]');
+        if (keyEl) _touchNotes.set(touch.identifier, parseInt(keyEl.dataset.midi));
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', e => {
+      for (const touch of e.changedTouches) _touchNotes.delete(touch.identifier);
+    }, { passive: true });
+    document.addEventListener('touchcancel', e => {
+      for (const touch of e.changedTouches) _touchNotes.delete(touch.identifier);
+    }, { passive: true });
 
     // Desktop (Electron) integrations
     if (window.qoixApp) {
