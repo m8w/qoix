@@ -887,34 +887,128 @@ const UI = (() => {
   }
 
   // ── Presets ───────────────────────────────────────────────
+  const STORAGE_KEY = 'qoix_user_patches';
+
+  function loadUserPatches() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch(e) { return []; }
+  }
+
+  function saveUserPatches(patches) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(patches)); } catch(e) {}
+  }
+
   function initPresets() {
-    const sel = $('preset-select');
-    Presets.forEach((p, i) => {
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = p.name;
-      sel.appendChild(opt);
-    });
+    const sel    = $('preset-select');
+    const saveBtn = $('save-preset-btn');
+
+    // Track which option indices are user patches (vs built-in)
+    const builtinCount = Presets.length;
+
+    function rebuildOptions(selectIdx) {
+      sel.innerHTML = '';
+      // Built-in factory presets
+      Presets.forEach((p, i) => {
+        const opt = document.createElement('option');
+        opt.value = 'builtin:' + i;
+        opt.textContent = p.name;
+        sel.appendChild(opt);
+      });
+      // User patches from localStorage
+      const user = loadUserPatches();
+      if (user.length) {
+        const grp = document.createElement('optgroup');
+        grp.label = '── My Patches ──';
+        user.forEach((p, i) => {
+          const opt = document.createElement('option');
+          opt.value = 'user:' + i;
+          opt.textContent = p.name;
+          grp.appendChild(opt);
+        });
+        sel.appendChild(grp);
+      }
+      if (selectIdx !== undefined) sel.value = selectIdx;
+    }
+
+    rebuildOptions('builtin:0');
 
     sel.addEventListener('change', () => {
-      const p = Presets[parseInt(sel.value)];
+      const [type, idx] = sel.value.split(':');
+      const p = type === 'user' ? loadUserPatches()[parseInt(idx)] : Presets[parseInt(idx)];
       if (!p) return;
       Synth.loadPreset(p);
       syncUIToState();
+      // Show delete button only for user patches
+      if ($('delete-preset-btn')) $('delete-preset-btn').style.display = type === 'user' ? '' : 'none';
     });
 
-    $('save-preset-btn').addEventListener('click', () => {
-      const name = prompt('Preset name:', 'My Preset');
-      if (!name) return;
+    // Save current settings as a named user patch
+    saveBtn.addEventListener('click', () => {
+      const name = prompt('Name this patch:', 'My Patch');
+      if (!name || !name.trim()) return;
       const snap = JSON.parse(JSON.stringify(Synth.getState()));
-      snap.name = name;
-      Presets.push(snap);
-      const opt = document.createElement('option');
-      opt.value = Presets.length - 1;
-      opt.textContent = name;
-      sel.appendChild(opt);
-      sel.value = Presets.length - 1;
+      snap.name = name.trim();
+      const user = loadUserPatches();
+      user.push(snap);
+      saveUserPatches(user);
+      rebuildOptions('user:' + (user.length - 1));
+      if ($('delete-preset-btn')) $('delete-preset-btn').style.display = '';
     });
+
+    // Delete current user patch
+    if ($('delete-preset-btn')) {
+      $('delete-preset-btn').style.display = 'none';
+      $('delete-preset-btn').addEventListener('click', () => {
+        const [type, idx] = sel.value.split(':');
+        if (type !== 'user') return;
+        if (!confirm('Delete this patch?')) return;
+        const user = loadUserPatches();
+        user.splice(parseInt(idx), 1);
+        saveUserPatches(user);
+        rebuildOptions('builtin:0');
+        if ($('delete-preset-btn')) $('delete-preset-btn').style.display = 'none';
+      });
+    }
+
+    // Export current patch as a JSON file
+    if ($('export-patch-btn')) {
+      $('export-patch-btn').addEventListener('click', () => {
+        const snap = JSON.parse(JSON.stringify(Synth.getState()));
+        const name = snap.name || 'qoix-patch';
+        snap.name = name;
+        const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name.replace(/\s+/g, '-').toLowerCase() + '.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    }
+
+    // Import a patch from a JSON file
+    if ($('import-patch-input')) {
+      $('import-patch-input').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          try {
+            const patch = JSON.parse(ev.target.result);
+            if (!patch || typeof patch !== 'object') throw new Error('Invalid patch');
+            if (!patch.name) patch.name = file.name.replace(/\.json$/i, '');
+            const user = loadUserPatches();
+            user.push(patch);
+            saveUserPatches(user);
+            rebuildOptions('user:' + (user.length - 1));
+            Synth.loadPreset(patch);
+            syncUIToState();
+            if ($('delete-preset-btn')) $('delete-preset-btn').style.display = '';
+          } catch(err) { alert('Could not load patch: ' + err.message); }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+    }
   }
 
   // ── Sync UI from engine state ─────────────────────────────

@@ -17,9 +17,14 @@
     </div>
 
     <div class="header-center">
-      <label class="hdr-label">Preset</label>
+      <label class="hdr-label">Patch</label>
       <select id="preset-select"></select>
       <button id="save-preset-btn">Save</button>
+      <button id="delete-preset-btn" title="Delete this patch" style="display:none">&#10005;</button>
+      <button id="export-patch-btn" title="Export patch as JSON">&#8659;</button>
+      <label id="import-patch-label" title="Import patch from JSON" style="cursor:pointer">
+        &#8657; <input type="file" id="import-patch-input" accept=".json" style="display:none" />
+      </label>
     </div>
 
     <div class="header-right">

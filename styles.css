@@ -195,6 +195,11 @@ button:active { background: var(--accent); color: #fff; }
 
 #panic-btn { background: #1e0f0f; border-color: #6a1f1f; color: var(--accent2); }
 #panic-btn:hover { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+#delete-preset-btn { background: #1e0f0f; border-color: #6a1f1f; color: var(--accent2); padding: 3px 7px; }
+#delete-preset-btn:hover { background: var(--accent2); color: #fff; }
+#export-patch-btn { padding: 3px 8px; }
+#import-patch-label { padding: 3px 8px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 0.82rem; user-select: none; }
+#import-patch-label:hover { border-color: var(--accent); color: var(--glow); }
 
 /* ── Wave / filter buttons ───────────────────────────────── */
 .wave-btns { display: flex; gap: 3px; flex-wrap: wrap; }
