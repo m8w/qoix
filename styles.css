@@ -957,3 +957,26 @@ footer {
 .rec-load-label {
   display: inline-block; cursor: pointer;
 }
+
+/* ── Spectral / FrFT Tab ─────────────────────────────────── */
+.spectral-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--gap);
+}
+
+.spectral-header-panel {
+  grid-column: 1 / -1;
+}
+
+.spectral-desc {
+  font-size: 0.78rem;
+  color: var(--dim);
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+
+.spectral-op-panel h2 sub {
+  font-size: 0.65em;
+  vertical-align: sub;
+}

@@ -44,6 +44,7 @@
     <button class="tab-btn" data-tab="rand">Random Gen</button>
     <button class="tab-btn" data-tab="render">&#9654; Render</button>
     <button class="tab-btn" data-tab="rec">&#9679; Rec</button>
+    <button class="tab-btn" data-tab="spectral">&#9670; Spectral</button>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════
@@ -737,6 +738,98 @@
     </div>
   </div><!-- #tab-rec -->
 
+  <!-- ═══════════════════════════════════════════════════
+       TAB: SPECTRAL / FrFT
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-spectral">
+    <div class="spectral-grid">
+
+      <!-- Header / Enable -->
+      <section class="panel spectral-header-panel">
+        <h2>Spectral / FrFT Synthesis
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="spectral-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <p class="spectral-desc">Chirp oscillators modelled on the Fractional Fourier Transform.
+          Each operator uses a Hermite&#8209;Gaussian waveform (eigenfunction of the FrFT).
+          The eigenspace filter approximates the four DFT projection operators (&#955;=&#177;1, &#955;=&#177;i).</p>
+        <div class="section-sub">FrFT Order</div>
+        <div class="ctrl-row">
+          <span class="lbl">&#945; (alpha)</span>
+          <input type="range" id="spectral-alpha" min="0" max="1" step="0.01" value="0.3" />
+          <span class="val" id="spectral-alpha-v">0.30</span>
+        </div>
+        <div class="section-sub">Chirp LFO Shape</div>
+        <div class="wave-btns" id="spectral-chirp-btns">
+          <button class="wb active" data-chirp="sawtooth">Saw</button>
+          <button class="wb" data-chirp="sine">Sine</button>
+          <button class="wb" data-chirp="triangle">Tri</button>
+        </div>
+      </section>
+
+      <!-- Operator 1 -->
+      <section class="panel spectral-op-panel">
+        <h2>Op 1 &mdash; Hermite&#8209;Gaussian &#968;<sub>0</sub>
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="spectral-op0-en" checked /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row"><span class="lbl">Freq Ratio</span><input type="range" id="spectral-op0-ratio" min="0.25" max="4" step="0.25" value="1" /><span class="val" id="spectral-op0-ratio-v">1.00</span></div>
+        <div class="ctrl-row"><span class="lbl">Chirp Rate</span><input type="range" id="spectral-op0-chirp" min="0.1" max="8" step="0.1" value="2" /><span class="val" id="spectral-op0-chirp-v">2.0</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="spectral-op0-level" min="0" max="1" step="0.01" value="0.7" /><span class="val" id="spectral-op0-level-v">70%</span></div>
+      </section>
+
+      <!-- Operator 2 -->
+      <section class="panel spectral-op-panel">
+        <h2>Op 2 &mdash; Hermite&#8209;Gaussian &#968;<sub>1</sub>
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="spectral-op1-en" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row"><span class="lbl">Freq Ratio</span><input type="range" id="spectral-op1-ratio" min="0.25" max="4" step="0.25" value="2" /><span class="val" id="spectral-op1-ratio-v">2.00</span></div>
+        <div class="ctrl-row"><span class="lbl">Chirp Rate</span><input type="range" id="spectral-op1-chirp" min="0.1" max="8" step="0.1" value="3" /><span class="val" id="spectral-op1-chirp-v">3.0</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="spectral-op1-level" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="spectral-op1-level-v">50%</span></div>
+      </section>
+
+      <!-- Operator 3 -->
+      <section class="panel spectral-op-panel">
+        <h2>Op 3 &mdash; Hermite&#8209;Gaussian &#968;<sub>2</sub>
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="spectral-op2-en" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row"><span class="lbl">Freq Ratio</span><input type="range" id="spectral-op2-ratio" min="0.25" max="4" step="0.25" value="0.5" /><span class="val" id="spectral-op2-ratio-v">0.50</span></div>
+        <div class="ctrl-row"><span class="lbl">Chirp Rate</span><input type="range" id="spectral-op2-chirp" min="0.1" max="8" step="0.1" value="1" /><span class="val" id="spectral-op2-chirp-v">1.0</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="spectral-op2-level" min="0" max="1" step="0.01" value="0.4" /><span class="val" id="spectral-op2-level-v">40%</span></div>
+      </section>
+
+      <!-- Eigenspace Balance -->
+      <section class="panel spectral-eigen-panel">
+        <h2>Eigenspace Balance</h2>
+        <p class="spectral-desc" style="margin-bottom:8px">
+          The four DFT projection operators:
+          &#955;=+1 (even/symmetric) &middot; &#955;=&#8722;1 (inverted even) &middot;
+          &#955;=+i (odd/transient) &middot; &#955;=&#8722;i (inverted odd)
+        </p>
+        <div class="ctrl-row"><span class="lbl">&#955;=+1</span><input type="range" id="eigen-p1" min="0" max="1" step="0.01" value="0.7" /><span class="val" id="eigen-p1-v">70%</span></div>
+        <div class="ctrl-row"><span class="lbl">&#955;=&#8722;1</span><input type="range" id="eigen-pm1" min="0" max="1" step="0.01" value="0" /><span class="val" id="eigen-pm1-v">0%</span></div>
+        <div class="ctrl-row"><span class="lbl">&#955;=+i</span><input type="range" id="eigen-pi" min="0" max="1" step="0.01" value="0.7" /><span class="val" id="eigen-pi-v">70%</span></div>
+        <div class="ctrl-row"><span class="lbl">&#955;=&#8722;i</span><input type="range" id="eigen-pmi" min="0" max="1" step="0.01" value="0" /><span class="val" id="eigen-pmi-v">0%</span></div>
+      </section>
+
+      <!-- Spectral Envelope -->
+      <section class="panel spectral-env-panel">
+        <h2>Spectral Envelope</h2>
+        <div class="ctrl-row"><span class="lbl">A</span><input type="range" id="spectral-env-a" min="0.001" max="4" step="0.001" value="0.02" /><span class="val" id="spectral-env-a-v">20ms</span></div>
+        <div class="ctrl-row"><span class="lbl">D</span><input type="range" id="spectral-env-d" min="0.001" max="4" step="0.001" value="0.15" /><span class="val" id="spectral-env-d-v">150ms</span></div>
+        <div class="ctrl-row"><span class="lbl">S</span><input type="range" id="spectral-env-s" min="0" max="1" step="0.01" value="0.75" /><span class="val" id="spectral-env-s-v">75%</span></div>
+        <div class="ctrl-row"><span class="lbl">R</span><input type="range" id="spectral-env-r" min="0.001" max="8" step="0.001" value="0.35" /><span class="val" id="spectral-env-r-v">350ms</span></div>
+      </section>
+
+    </div><!-- .spectral-grid -->
+  </div><!-- #tab-spectral -->
+
   <!-- ── Always-visible: Keyboard ───────────────────── -->
   <section class="keyboard-section">
     <div class="kbd-header">
@@ -765,6 +858,7 @@
 <script src="js/randomgen.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/recorder.js"></script>
+<script src="js/spectralfft.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

@@ -4,968 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QOIX Synthesizer</title>
-  <style>
-/* ============================================================
-   QOIX Synthesizer — Styles
-   ============================================================ */
-
-:root {
-  --bg:       #0d1210;
-  --bg-panel: #141f1b;
-  --bg-inset: #090e0c;
-  --border:   #2a4038;
-  --accent:   #5b67d8;
-  --glow:     #7b86f5;
-  --accent2:  #e05c5c;
-  --green:    #4fc97e;
-  --yellow:   #e6c84a;
-  --text:     #d6e0dc;
-  --dim:      #7a9990;
-  --bright:   #eef6f3;
-  --radius:   8px;
-  --r-sm:     5px;
-  --gap:      12px;
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; scroll-behavior: smooth; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-#app { display: flex; flex-direction: column; flex: 1; }
-
-/* ── Header ──────────────────────────────────────────────── */
-header {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 10px 18px;
-  background: #090d0b;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-
-.logo { display: flex; align-items: baseline; gap: 2px; user-select: none; }
-.logo .q { font-size: 2.2rem; font-weight: 900; color: var(--glow); text-shadow: 0 0 18px var(--accent); letter-spacing: -1px; }
-.logo .rest { font-size: 2.2rem; font-weight: 900; color: var(--bright); letter-spacing: -1px; }
-.logo .tag { font-size: 0.72rem; color: var(--dim); text-transform: uppercase; letter-spacing: 2px; margin-left: 10px; }
-
-.header-center, .header-right {
-  display: flex; align-items: center; gap: 8px;
-}
-.header-right { margin-left: auto; }
-
-.hdr-label { color: var(--dim); font-size: 0.8rem; }
-.small-val { color: var(--dim); font-size: 0.75rem; min-width: 32px; }
-
-/* ── Tabs ────────────────────────────────────────────────── */
-.synth-tabs {
-  display: flex;
-  background: #090d0b;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-}
-
-.tab-btn {
-  padding: 10px 20px;
-  background: transparent;
-  border: none;
-  border-bottom: 3px solid transparent;
-  color: var(--dim);
-  font-size: 0.82rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
-  border-radius: 0;
-}
-.tab-btn:hover { color: var(--text); background: transparent; }
-.tab-btn.active { color: var(--glow); border-bottom-color: var(--accent); }
-
-.tab-panel { display: none; padding: var(--gap); }
-.tab-panel.active { display: block; }
-
-/* ── Panels ──────────────────────────────────────────────── */
-.panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px;
-}
-
-.panel h2 {
-  display: flex;
-  align-items: center;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: var(--dim);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 6px;
-  margin-bottom: 8px;
-  gap: 6px;
-}
-
-.ml-auto { margin-left: auto; }
-
-.section-sub {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: var(--dim);
-  margin: 7px 0 4px;
-  border-top: 1px solid var(--border);
-  padding-top: 5px;
-}
-
-/* ── Control rows ────────────────────────────────────────── */
-.ctrl-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-.ctrl-row .lbl {
-  width: 52px;
-  font-size: 0.82rem;
-  color: var(--dim);
-  flex-shrink: 0;
-}
-.ctrl-row select, .ctrl-row .val { flex-shrink: 0; }
-.ctrl-row input[type="range"] { flex: 1; min-width: 0; }
-.val {
-  font-size: 0.8rem;
-  color: var(--text);
-  width: 52px;
-  text-align: right;
-  font-weight: 500;
-}
-
-/* ── Range inputs ────────────────────────────────────────── */
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 3px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-}
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px; height: 12px;
-  border-radius: 50%;
-  background: var(--glow);
-  border: 2px solid var(--bg);
-  box-shadow: 0 0 5px var(--accent);
-  cursor: pointer;
-}
-input[type="range"]::-moz-range-thumb {
-  width: 12px; height: 12px;
-  border-radius: 50%;
-  background: var(--glow);
-  border: 2px solid var(--bg);
-}
-input[type="range"].vslider {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  height: 64px;
-  width: 3px;
-  cursor: ns-resize;
-}
-
-/* ── Buttons ─────────────────────────────────────────────── */
-button {
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 4px 11px;
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  font-size: 0.8rem;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-button:hover { background: #1a2820; border-color: var(--accent); color: var(--bright); }
-button:active { background: var(--accent); color: #fff; }
-
-.sm-btn { padding: 3px 8px; font-size: 0.72rem; }
-
-#panic-btn { background: #1e0f0f; border-color: #6a1f1f; color: var(--accent2); }
-#panic-btn:hover { background: var(--accent2); border-color: var(--accent2); color: #fff; }
-#delete-preset-btn { background: #1e0f0f; border-color: #6a1f1f; color: var(--accent2); padding: 3px 7px; }
-#delete-preset-btn:hover { background: var(--accent2); color: #fff; }
-#export-patch-btn { padding: 3px 8px; }
-#import-patch-label { padding: 3px 8px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 0.82rem; user-select: none; }
-#import-patch-label:hover { border-color: var(--accent); color: var(--glow); }
-
-/* ── Wave / filter buttons ───────────────────────────────── */
-.wave-btns { display: flex; gap: 3px; flex-wrap: wrap; }
-.wb { padding: 3px 7px; font-size: 0.75rem; min-width: 32px; }
-.wb.active { background: var(--accent); border-color: var(--glow); color: #fff; }
-
-/* ── Toggle ──────────────────────────────────────────────── */
-.toggle-wrap { display: flex; align-items: center; cursor: pointer; position: relative; }
-.toggle-wrap input[type="checkbox"] { opacity: 0; width: 0; height: 0; position: absolute; }
-.toggle {
-  display: inline-block;
-  width: 28px; height: 15px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  position: relative;
-  transition: background 0.18s;
-}
-.toggle::after {
-  content: '';
-  position: absolute;
-  top: 2px; left: 2px;
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  background: var(--dim);
-  transition: left 0.18s, background 0.18s;
-}
-.toggle-wrap input:checked + .toggle { background: var(--accent); border-color: var(--glow); }
-.toggle-wrap input:checked + .toggle::after { left: 15px; background: #fff; }
-
-/* ── Select ──────────────────────────────────────────────── */
-select {
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 4px 6px;
-  border-radius: var(--r-sm);
-  font-size: 0.78rem;
-  cursor: pointer;
-  flex: 1;
-}
-select:focus { outline: none; border-color: var(--accent); }
-
-/* ══════════════════════════════════════════════════════════
-   SUBTRACTIVE TAB LAYOUT
-══════════════════════════════════════════════════════════ */
-.sub-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr) repeat(2, 1fr);
-  grid-template-rows: auto;
-  grid-template-areas:
-    "osc1 osc2 osc3 env env"
-    "filter filter lfo fx fx"
-    "viz viz quality fx fx";
-  gap: var(--gap);
-}
-
-#panel-osc1    { grid-area: osc1; }
-#panel-osc2    { grid-area: osc2; }
-#panel-osc3    { grid-area: osc3; }
-#panel-env     { grid-area: env; }
-#panel-filter  { grid-area: filter; }
-#panel-lfo     { grid-area: lfo; }
-#panel-fx      { grid-area: fx; overflow-y: auto; max-height: 520px; }
-#panel-viz     { grid-area: viz; }
-#panel-quality { grid-area: quality; }
-
-@media (max-width: 1200px) {
-  .sub-grid {
-    grid-template-columns: 1fr 1fr 1fr;
-    grid-template-areas:
-      "osc1 osc2 osc3"
-      "env env env"
-      "filter filter lfo"
-      "fx fx fx"
-      "viz viz quality";
-  }
-}
-
-@media (max-width: 800px) {
-  .sub-grid {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      "osc1 osc2"
-      "osc3 env"
-      "filter lfo"
-      "fx fx"
-      "viz quality";
-  }
-}
-
-@media (max-width: 600px) {
-  .sub-grid { grid-template-columns: 1fr; grid-template-areas: none; }
-  .sub-grid > * { grid-area: unset !important; }
-}
-
-/* ── Env display ─────────────────────────────────────────── */
-.env-sliders {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.env-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 8px 4px;
-}
-.env-col label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); font-weight: 600; }
-.env-col .val { font-size: 0.75rem; text-align: center; width: auto; color: var(--text); font-weight: 500; }
-
-#env-canvas {
-  display: block;
-  width: 100%;
-  height: 70px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-}
-
-/* ── FX panel ────────────────────────────────────────────── */
-.fx-block { padding: 4px 0; }
-.fx-hdr {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 5px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--green);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.fx-sep { border-top: 1px solid var(--border); margin: 8px 0; }
-
-/* ── Visualizer ──────────────────────────────────────────── */
-.viz-panel h2 .viz-mode-wrap { display: flex; gap: 4px; }
-#viz-canvas {
-  display: block;
-  width: 100%;
-  height: 110px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-}
-.active-notes { font-size: 0.72rem; color: var(--dim); margin-top: 6px; }
-#active-notes-disp { color: var(--glow); font-weight: 600; }
-
-/* ══════════════════════════════════════════════════════════
-   FM TAB
-══════════════════════════════════════════════════════════ */
-.fm-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
-  gap: var(--gap);
-}
-.fm-header-panel { grid-column: 1; }
-.fm-op-panel { grid-column: auto; }
-
-@media (max-width: 900px) {
-  .fm-grid { grid-template-columns: 1fr 1fr; }
-  .fm-header-panel { grid-column: 1 / -1; }
-}
-
-.op-title { font-size: 0.68rem; }
-.op-carrier { color: var(--glow) !important; }
-.op-mod { color: var(--yellow) !important; }
-
-#fm-algo-canvas {
-  display: block;
-  width: 100%;
-  height: 100px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  margin-top: 8px;
-}
-.fm-algo-tip { font-size: 0.65rem; color: var(--dim); margin-top: 4px; }
-
-/* ══════════════════════════════════════════════════════════
-   WAVETABLE TAB
-══════════════════════════════════════════════════════════ */
-.wt-grid {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: var(--gap);
-  align-items: start;
-}
-
-@media (max-width: 700px) { .wt-grid { grid-template-columns: 1fr; } }
-
-#wt-canvas, #oxford-canvas {
-  display: block;
-  width: 100%;
-  height: 100px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  margin-top: 10px;
-}
-#oxford-canvas { height: 120px; }
-
-.wt-table-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 10px;
-}
-.wt-table-btn {
-  padding: 3px 8px;
-  font-size: 0.7rem;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  color: var(--text);
-  transition: background 0.1s;
-}
-.wt-table-btn:hover { background: #1a2820; }
-.wt-table-btn.active { background: var(--accent); border-color: var(--glow); color: #fff; }
-
-/* Oxford harmonics */
-.oxford-info { font-size: 0.72rem; color: var(--dim); margin-bottom: 10px; }
-.harmonic-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 6px;
-}
-.harmonic-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 6px 4px;
-}
-.harmonic-col label { font-size: 0.72rem; color: var(--dim); font-weight: 600; }
-.harmonic-col .val  { font-size: 0.7rem; text-align: center; width: auto; color: var(--glow); font-weight: 600; }
-
-/* Combined fader: glowing bar + draggable thumb overlay */
-.harm-fader {
-  position: relative;
-  width: 28px;
-  height: 100px;
-  background: #06060a;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-  cursor: ns-resize;
-}
-
-/* The glowing fill bar — rises from the bottom */
-.harm-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 0%;
-  background: linear-gradient(to top,
-    #1a1a90 0%,
-    var(--accent) 55%,
-    var(--glow) 88%,
-    #c8ccff 100%
-  );
-  box-shadow: 0 -3px 14px var(--accent), inset 0 0 10px rgba(123,134,245,0.25);
-  border-radius: 0 0 3px 3px;
-  pointer-events: none;
-  transition: height 0.04s ease-out;
-}
-
-/* Transparent-track slider sits on top of the bar */
-input[type="range"].harm-slider {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  writing-mode: vertical-lr;
-  direction: rtl;
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent !important;
-  border: none !important;
-  outline: none;
-  z-index: 2;
-  cursor: ns-resize;
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-input[type="range"].harm-slider::-webkit-slider-runnable-track {
-  background: transparent;
-  border: none;
-}
-input[type="range"].harm-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 26px;
-  height: 7px;
-  border-radius: 3px;
-  background: var(--bright);
-  border: 1px solid var(--glow);
-  box-shadow: 0 0 8px var(--accent), 0 1px 3px rgba(0,0,0,0.8);
-  cursor: ns-resize;
-}
-input[type="range"].harm-slider:hover::-webkit-slider-thumb {
-  background: #fff;
-  box-shadow: 0 0 14px var(--glow);
-}
-input[type="range"].harm-slider::-moz-range-track {
-  background: transparent;
-  border: none;
-}
-input[type="range"].harm-slider::-moz-range-thumb {
-  width: 26px;
-  height: 7px;
-  border-radius: 3px;
-  background: var(--bright);
-  border: 1px solid var(--glow);
-  box-shadow: 0 0 8px var(--accent);
-}
-
-.oxford-presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
-
-/* ══════════════════════════════════════════════════════════
-   MOD MATRIX TAB
-══════════════════════════════════════════════════════════ */
-.matrix-wrap {
-  display: grid;
-  grid-template-columns: 1fr 220px;
-  gap: var(--gap);
-  align-items: start;
-}
-@media (max-width: 800px) { .matrix-wrap { grid-template-columns: 1fr; } }
-
-.matrix-info { font-size: 0.72rem; color: var(--dim); margin-bottom: 10px; }
-.matrix-scroll { overflow-x: auto; padding-bottom: 4px; }
-
-/* ── New mod matrix table ── */
-.mod-matrix-table {
-  border-collapse: collapse;
-  font-size: 0.7rem;
-  min-width: 700px;
-  width: 100%;
-}
-.mm-corner {
-  background: var(--bg-inset);
-  color: var(--dim);
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  font-size: 0.62rem;
-  text-align: left;
-  font-style: italic;
-}
-.mm-dh {
-  background: var(--bg-inset);
-  color: var(--accent);
-  padding: 5px 4px;
-  border: 1px solid var(--border);
-  text-align: center;
-  font-size: 0.65rem;
-  white-space: nowrap;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.mm-src {
-  background: var(--bg-inset);
-  color: var(--glow);
-  font-weight: 700;
-  font-size: 0.7rem;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  white-space: nowrap;
-}
-.mod-matrix-table td {
-  border: 1px solid var(--border);
-  padding: 4px 5px;
-  text-align: center;
-  vertical-align: middle;
-  transition: background 0.15s;
-}
-.mod-matrix-table td.mm-on {
-  background: rgba(91,103,216,0.12);
-  border-color: rgba(91,103,216,0.4);
-}
-.mod-matrix-table tr:hover td:not(.mm-src) { background: rgba(91,103,216,0.06); }
-.mod-matrix-table tr:hover td.mm-on       { background: rgba(91,103,216,0.18); }
-
-/* Toggle dot button */
-.mm-dot {
-  display: inline-block;
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 2px;
-  transition: background 0.12s, border-color 0.12s;
-  vertical-align: middle;
-}
-.mm-dot.active {
-  background: var(--accent);
-  border-color: var(--glow);
-  box-shadow: 0 0 5px var(--glow);
-}
-
-/* Amount slider in matrix */
-.mm-amt {
-  width: 58px;
-  display: block;
-  margin: 2px auto 0;
-  accent-color: var(--accent);
-}
-
-/* Amount value label */
-.mm-val {
-  display: block;
-  font-size: 0.6rem;
-  margin-top: 1px;
-  font-variant-numeric: tabular-nums;
-}
-
-.src-label {
-  font-size: 0.7rem;
-  color: var(--glow);
-  font-weight: 700;
-  white-space: nowrap;
-  padding: 5px 10px;
-}
-
-.lfo2-panel { align-self: start; }
-
-.mod-src-row {
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-}
-.mod-src-val {
-  font-size: 0.65rem;
-  display: flex;
-  justify-content: space-between;
-  color: var(--dim);
-  padding: 2px 0;
-  border-bottom: 1px solid var(--border);
-}
-.mod-src-val span { color: var(--glow); }
-
-/* ══════════════════════════════════════════════════════════
-   RANDOM GENERATOR TAB
-══════════════════════════════════════════════════════════ */
-.rand-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--gap);
-}
-@media (max-width: 800px) { .rand-grid { grid-template-columns: 1fr; } }
-
-.rand-big-btns { display: flex; gap: 8px; margin-bottom: 14px; }
-.big-btn { padding: 10px 20px; font-size: 0.95rem; font-weight: 700; border-radius: var(--radius); }
-.green-btn { background: #0f2e1a; border-color: #2a7a3a; color: var(--green); }
-.green-btn:hover, .green-btn.active { background: var(--green); color: #000; }
-.red-btn { background: #2d1010; border-color: #7a2020; color: var(--accent2); }
-.red-btn:hover { background: var(--accent2); color: #fff; }
-
-.rand-mode-btns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.mode-btn {
-  padding: 10px;
-  text-align: left;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  background: var(--bg-inset);
-}
-.mode-btn small { color: var(--dim); display: block; font-size: 0.68rem; }
-.mode-btn.active { background: var(--accent); border-color: var(--glow); color: #fff; }
-.mode-btn.active small { color: rgba(255,255,255,0.7); }
-
-.rand-status { font-size: 0.75rem; color: var(--dim); margin-top: 10px; }
-#rand-status { color: var(--green); font-weight: 600; margin-left: 4px; }
-.rand-note-flash { color: var(--glow); font-weight: 700; margin-left: 8px; }
-
-/* ══════════════════════════════════════════════════════════
-   KEYBOARD
-══════════════════════════════════════════════════════════ */
-.keyboard-section {
-  background: #090d0b;
-  border-top: 1px solid var(--border);
-  padding: 8px 8px 10px;
-}
-.kbd-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 8px; flex-wrap: wrap; gap: 8px;
-}
-.kbd-title { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 2px; color: var(--dim); }
-.kbd-controls { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
-.kbd-controls .small { color: var(--dim); font-size: 0.82rem; }
-.kbd-controls strong { color: var(--bright); min-width: 22px; text-align: center; font-size: 1rem; }
-.kbd-hint { color: var(--dim); font-size: 0.75rem; font-style: italic; }
-
-.piano {
-  display: flex;
-  position: relative;
-  height: 124px;
-  user-select: none;
-  overflow-x: auto;
-  /* 5.1 octaves × 7 white keys = 36 white keys × 32px ≈ 1152px — fits 1200+ screens */
-}
-.key {
-  position: relative;
-  cursor: pointer;
-  border-radius: 0 0 4px 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  padding-bottom: 5px;
-  transition: background 0.04s;
-}
-.key.white {
-  width: 32px; height: 124px;
-  background: linear-gradient(180deg, #dde 0%, #f9f9fb 100%);
-  border: 1px solid #aab;
-  flex-shrink: 0;
-  z-index: 1;
-}
-.key.white:hover  { background: linear-gradient(180deg, #cce 0%, #eef 100%); }
-.key.white.active { background: linear-gradient(180deg, var(--accent) 0%, var(--glow) 100%); }
-/* Subtle teal tint on keys within the current keyboard-shortcut octave */
-.key.white.kb-range  { background: linear-gradient(180deg, #c8ddd8 0%, #eef8f5 100%); }
-.key.white.kb-range:hover { background: linear-gradient(180deg, #b8d0ca 0%, #e0f0eb 100%); }
-
-.key.black {
-  width: 20px; height: 76px;
-  background: linear-gradient(180deg, #242430 0%, #16161e 100%);
-  border: 1px solid #111;
-  margin-left: -10px;
-  margin-right: -10px;
-  z-index: 2;
-  flex-shrink: 0;
-  justify-content: flex-end;
-  padding-bottom: 4px;
-}
-.key.black:hover  { background: linear-gradient(180deg, #343448 0%, #242430 100%); }
-.key.black.active { background: linear-gradient(180deg, var(--accent) 0%, #3030e0 100%); }
-.key.black.kb-range { background: linear-gradient(180deg, #1e3030 0%, #122020 100%); }
-
-/* Key label: note name + keyboard hint */
-.key-label { display: flex; flex-direction: column; align-items: center; gap: 0; line-height: 1; }
-.key-note {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #7a9a94;
-  line-height: 1;
-}
-.key.white.active .key-note { color: #fff; }
-.key-hint {
-  font-size: 0.6rem;
-  color: #b0b0c8;
-  line-height: 1;
-  margin-top: 2px;
-}
-.key.white.active .key-hint { color: rgba(255,255,255,0.9); }
-.key.black .key-hint {
-  font-size: 0.55rem;
-  color: #3a5050;
-  font-weight: 700;
-}
-.key.black.kb-range .key-hint { color: #4a8070; }
-.key.black.active .key-hint   { color: rgba(255,255,255,0.85); }
-
-/* ── Quality panel ───────────────────────────────────────── */
-.quality-meters {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.meter-col {
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.meter-label { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
-.meter-bar-wrap {
-  height: 6px;
-  background: var(--bg);
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-.meter-bar {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--glow) 70%, var(--accent2) 100%);
-  border-radius: 3px;
-  width: 0%;
-  transition: width 0.1s;
-}
-.meter-val { font-size: 0.68rem; color: var(--text); }
-.meter-val.big { font-size: 0.85rem; font-weight: 600; color: var(--glow); }
-
-/* ── macOS traffic-light offset ─────────────────────────── */
-body.macos-titlebar header {
-  padding-left: 80px; /* leave room for traffic lights */
-}
-
-/* ── Footer ──────────────────────────────────────────────── */
-footer {
-  text-align: center;
-  padding: 8px;
-  font-size: 0.68rem;
-  color: var(--dim);
-  border-top: 1px solid var(--border);
-}
-
-/* ══════════════════════════════════════════════════════════
-   RENDER TAB
-══════════════════════════════════════════════════════════ */
-.render-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--gap);
-  align-items: start;
-}
-@media (max-width: 900px) { .render-layout { grid-template-columns: 1fr; } }
-
-/* Drop zone */
-.render-dropzone {
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-inset);
-  padding: 24px 16px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  margin-top: 8px;
-}
-.render-dropzone:hover, .render-dropzone.drag-over {
-  border-color: var(--accent);
-  background: rgba(91,103,216,0.08);
-}
-.rdz-icon { font-size: 2rem; margin-bottom: 8px; }
-.rdz-main { font-size: 0.82rem; color: var(--bright); font-weight: 600; }
-.rdz-sub  { font-size: 0.72rem; color: var(--dim); margin-top: 3px; }
-
-/* MIDI info */
-.render-info { margin-top: 12px; }
-.ri-row { display: flex; justify-content: space-between; align-items: baseline;
-          font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border); }
-.ri-lbl { color: var(--dim); }
-.ri-row span:last-child { color: var(--bright); font-variant-numeric: tabular-nums; }
-
-/* Settings select */
-.rsel {
-  background: var(--bg-inset); border: 1px solid var(--border);
-  color: var(--text); border-radius: var(--r-sm); padding: 3px 6px;
-  font-size: 0.8rem; cursor: pointer;
-}
-.rsel:focus { border-color: var(--accent); outline: none; }
-
-/* Render button */
-.render-btn {
-  width: 100%; padding: 12px; font-size: 0.9rem; font-weight: 700;
-  background: linear-gradient(135deg, var(--accent) 0%, #3d4fb8 100%);
-  color: #fff; border: none; border-radius: var(--radius); cursor: pointer;
-  letter-spacing: 0.05em; transition: opacity 0.15s, transform 0.1s;
-  margin-bottom: 14px;
-}
-.render-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-.render-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* Progress */
-.render-progress-wrap { margin-bottom: 14px; }
-.render-progress-bar {
-  height: 6px; background: var(--bg-inset); border-radius: 3px;
-  overflow: hidden; border: 1px solid var(--border);
-}
-.render-progress-fill {
-  height: 100%; width: 0%; background: var(--accent);
-  border-radius: 3px; transition: width 0.3s;
-  box-shadow: 0 0 8px var(--glow);
-}
-.render-status-msg {
-  font-size: 0.72rem; color: var(--dim); margin-top: 5px; text-align: center;
-}
-
-/* Download */
-.render-download-btn {
-  display: block; text-align: center; padding: 10px;
-  background: rgba(79,201,126,0.15); border: 1px solid var(--green);
-  color: var(--green); border-radius: var(--radius); text-decoration: none;
-  font-size: 0.88rem; font-weight: 700; transition: background 0.15s;
-  margin-bottom: 8px;
-}
-.render-download-btn:hover { background: rgba(79,201,126,0.28); }
-.render-file-info {
-  font-size: 0.7rem; color: var(--dim); text-align: center;
-}
-
-/* ── Session Recorder ────────────────────────────────────── */
-.rec-layout {
-  display: flex; gap: var(--gap); flex-wrap: wrap; padding: var(--gap);
-}
-.rec-transport-panel, .rec-io-panel { min-width: 240px; flex: 1; }
-
-.rec-transport {
-  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
-}
-.rec-btn {
-  padding: 10px 16px; border: none; border-radius: var(--radius);
-  font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s, background 0.15s;
-}
-.rec-btn:disabled { opacity: 0.38; cursor: not-allowed; }
-.rec-btn-record { background: var(--accent2); color: #fff; }
-.rec-btn-record.rec-active { background: #c0392b; box-shadow: 0 0 10px rgba(192,57,43,0.7); }
-.rec-btn-stop   { background: #555; color: #fff; }
-.rec-btn-play   { background: rgba(79,201,126,0.2); border: 1px solid var(--green); color: var(--green); }
-
-.rec-status-row {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
-  font-size: 0.8rem; color: var(--dim);
-}
-.rec-indicator {
-  width: 10px; height: 10px; border-radius: 50%; background: #555;
-  transition: background 0.2s;
-}
-.rec-dot-active { background: var(--accent2) !important; box-shadow: 0 0 6px var(--accent2); animation: recpulse 1s infinite; }
-@keyframes recpulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-
-.rec-info { margin-top: 8px; }
-
-.rec-io-btns {
-  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
-}
-.rec-text-input {
-  flex: 1; background: var(--bg-inset); border: 1px solid var(--border);
-  color: var(--text); padding: 4px 8px; border-radius: var(--r-sm);
-  font-size: 0.82rem; min-width: 0;
-}
-.rec-load-label {
-  display: inline-block; cursor: pointer;
-}
-
-</style>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div id="app">
@@ -1005,6 +44,7 @@ footer {
     <button class="tab-btn" data-tab="rand">Random Gen</button>
     <button class="tab-btn" data-tab="render">&#9654; Render</button>
     <button class="tab-btn" data-tab="rec">&#9679; Rec</button>
+    <button class="tab-btn" data-tab="spectral">&#9670; Spectral</button>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════
@@ -1698,6 +738,98 @@ footer {
     </div>
   </div><!-- #tab-rec -->
 
+  <!-- ═══════════════════════════════════════════════════
+       TAB: SPECTRAL / FrFT
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-spectral">
+    <div class="spectral-grid">
+
+      <!-- Header / Enable -->
+      <section class="panel spectral-header-panel">
+        <h2>Spectral / FrFT Synthesis
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="spectral-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <p class="spectral-desc">Chirp oscillators modelled on the Fractional Fourier Transform.
+          Each operator uses a Hermite&#8209;Gaussian waveform (eigenfunction of the FrFT).
+          The eigenspace filter approximates the four DFT projection operators (&#955;=&#177;1, &#955;=&#177;i).</p>
+        <div class="section-sub">FrFT Order</div>
+        <div class="ctrl-row">
+          <span class="lbl">&#945; (alpha)</span>
+          <input type="range" id="spectral-alpha" min="0" max="1" step="0.01" value="0.3" />
+          <span class="val" id="spectral-alpha-v">0.30</span>
+        </div>
+        <div class="section-sub">Chirp LFO Shape</div>
+        <div class="wave-btns" id="spectral-chirp-btns">
+          <button class="wb active" data-chirp="sawtooth">Saw</button>
+          <button class="wb" data-chirp="sine">Sine</button>
+          <button class="wb" data-chirp="triangle">Tri</button>
+        </div>
+      </section>
+
+      <!-- Operator 1 -->
+      <section class="panel spectral-op-panel">
+        <h2>Op 1 &mdash; Hermite&#8209;Gaussian &#968;<sub>0</sub>
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="spectral-op0-en" checked /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row"><span class="lbl">Freq Ratio</span><input type="range" id="spectral-op0-ratio" min="0.25" max="4" step="0.25" value="1" /><span class="val" id="spectral-op0-ratio-v">1.00</span></div>
+        <div class="ctrl-row"><span class="lbl">Chirp Rate</span><input type="range" id="spectral-op0-chirp" min="0.1" max="8" step="0.1" value="2" /><span class="val" id="spectral-op0-chirp-v">2.0</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="spectral-op0-level" min="0" max="1" step="0.01" value="0.7" /><span class="val" id="spectral-op0-level-v">70%</span></div>
+      </section>
+
+      <!-- Operator 2 -->
+      <section class="panel spectral-op-panel">
+        <h2>Op 2 &mdash; Hermite&#8209;Gaussian &#968;<sub>1</sub>
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="spectral-op1-en" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row"><span class="lbl">Freq Ratio</span><input type="range" id="spectral-op1-ratio" min="0.25" max="4" step="0.25" value="2" /><span class="val" id="spectral-op1-ratio-v">2.00</span></div>
+        <div class="ctrl-row"><span class="lbl">Chirp Rate</span><input type="range" id="spectral-op1-chirp" min="0.1" max="8" step="0.1" value="3" /><span class="val" id="spectral-op1-chirp-v">3.0</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="spectral-op1-level" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="spectral-op1-level-v">50%</span></div>
+      </section>
+
+      <!-- Operator 3 -->
+      <section class="panel spectral-op-panel">
+        <h2>Op 3 &mdash; Hermite&#8209;Gaussian &#968;<sub>2</sub>
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="spectral-op2-en" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <div class="ctrl-row"><span class="lbl">Freq Ratio</span><input type="range" id="spectral-op2-ratio" min="0.25" max="4" step="0.25" value="0.5" /><span class="val" id="spectral-op2-ratio-v">0.50</span></div>
+        <div class="ctrl-row"><span class="lbl">Chirp Rate</span><input type="range" id="spectral-op2-chirp" min="0.1" max="8" step="0.1" value="1" /><span class="val" id="spectral-op2-chirp-v">1.0</span></div>
+        <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="spectral-op2-level" min="0" max="1" step="0.01" value="0.4" /><span class="val" id="spectral-op2-level-v">40%</span></div>
+      </section>
+
+      <!-- Eigenspace Balance -->
+      <section class="panel spectral-eigen-panel">
+        <h2>Eigenspace Balance</h2>
+        <p class="spectral-desc" style="margin-bottom:8px">
+          The four DFT projection operators:
+          &#955;=+1 (even/symmetric) &middot; &#955;=&#8722;1 (inverted even) &middot;
+          &#955;=+i (odd/transient) &middot; &#955;=&#8722;i (inverted odd)
+        </p>
+        <div class="ctrl-row"><span class="lbl">&#955;=+1</span><input type="range" id="eigen-p1" min="0" max="1" step="0.01" value="0.7" /><span class="val" id="eigen-p1-v">70%</span></div>
+        <div class="ctrl-row"><span class="lbl">&#955;=&#8722;1</span><input type="range" id="eigen-pm1" min="0" max="1" step="0.01" value="0" /><span class="val" id="eigen-pm1-v">0%</span></div>
+        <div class="ctrl-row"><span class="lbl">&#955;=+i</span><input type="range" id="eigen-pi" min="0" max="1" step="0.01" value="0.7" /><span class="val" id="eigen-pi-v">70%</span></div>
+        <div class="ctrl-row"><span class="lbl">&#955;=&#8722;i</span><input type="range" id="eigen-pmi" min="0" max="1" step="0.01" value="0" /><span class="val" id="eigen-pmi-v">0%</span></div>
+      </section>
+
+      <!-- Spectral Envelope -->
+      <section class="panel spectral-env-panel">
+        <h2>Spectral Envelope</h2>
+        <div class="ctrl-row"><span class="lbl">A</span><input type="range" id="spectral-env-a" min="0.001" max="4" step="0.001" value="0.02" /><span class="val" id="spectral-env-a-v">20ms</span></div>
+        <div class="ctrl-row"><span class="lbl">D</span><input type="range" id="spectral-env-d" min="0.001" max="4" step="0.001" value="0.15" /><span class="val" id="spectral-env-d-v">150ms</span></div>
+        <div class="ctrl-row"><span class="lbl">S</span><input type="range" id="spectral-env-s" min="0" max="1" step="0.01" value="0.75" /><span class="val" id="spectral-env-s-v">75%</span></div>
+        <div class="ctrl-row"><span class="lbl">R</span><input type="range" id="spectral-env-r" min="0.001" max="8" step="0.001" value="0.35" /><span class="val" id="spectral-env-r-v">350ms</span></div>
+      </section>
+
+    </div><!-- .spectral-grid -->
+  </div><!-- #tab-spectral -->
+
   <!-- ── Always-visible: Keyboard ───────────────────── -->
   <section class="keyboard-section">
     <div class="kbd-header">
@@ -1718,17 +850,7 @@ footer {
 </div><!-- #app -->
 
 <!-- Scripts: load order matters -->
-
-
-
-
-
-
-
-
-
 <script>
-/* === js/presets.js === */
 /* ============================================================
    QOIX Synthesizer — Sound Design Presets
    ============================================================ */
@@ -1962,8 +1084,8 @@ const Presets = [
   },
 ];
 
-
-/* === js/synth.js === */
+</script>
+<script>
 /* ============================================================
    QOIX Synthesizer — Core Audio Engine
    ============================================================ */
@@ -2812,8 +1934,8 @@ const Synth = (() => {
 
 })();
 
-
-/* === js/fm.js === */
+</script>
+<script>
 /* ============================================================
    QOIX Synthesizer — FM Engine (DX7-style 4-Operator)
    ============================================================
@@ -3004,8 +2126,8 @@ const FMEngine = (() => {
 
 })();
 
-
-/* === js/wavetable.js === */
+</script>
+<script>
 /* ============================================================
    QOIX Synthesizer — Wavetable Oscillator
    ============================================================
@@ -3232,8 +2354,8 @@ const WTEngine = (() => {
 
 })();
 
-
-/* === js/modmatrix.js === */
+</script>
+<script>
 /* ============================================================
    QOIX Synthesizer — SN2 Modulation Matrix
    ============================================================
@@ -3417,8 +2539,8 @@ const ModMatrix = (() => {
 
 })();
 
-
-/* === js/randomgen.js === */
+</script>
+<script>
 /* ============================================================
    QOIX Synthesizer — Random Note Generator
    ============================================================
@@ -3621,8 +2743,8 @@ const RandomGen = (() => {
 
 })();
 
-
-/* === js/renderer.js === */
+</script>
+<script>
 /* ============================================================
    QOIX Synthesizer — Offline MIDI Renderer
    ============================================================
@@ -4038,8 +3160,8 @@ const Renderer = (() => {
 
 })();
 
-
-/* === js/recorder.js === */
+</script>
+<script>
 /* ============================================================
    QOIX Synthesizer — Session Recorder
    ============================================================
@@ -4205,8 +3327,298 @@ const Recorder = (() => {
 
 })();
 
+</script>
+<script>
+/* ============================================================
+   QOIX — Spectral / FrFT Synthesis Engine
+   ============================================================
+   Implements chirp oscillators inspired by the Fractional
+   Fourier Transform (FrFT). A chirp oscillator exists on the
+   continuous rotation from pure time-domain (impulse, α=0)
+   to pure frequency-domain (sinusoid, α=1). The FrFT order α
+   controls how fast the instantaneous frequency sweeps.
 
-/* === js/ui.js === */
+   Eigenspace balance approximates the four projection operators
+   of the DFT (λ = 1, −1, +i, −i) via parallel signal paths
+   weighted independently.
+
+   Density cross-synthesis mixes the commutator of two operator
+   blocks, producing non-linear spectral fusion.
+   ============================================================ */
+
+'use strict';
+
+const SpectralFFT = (() => {
+
+  // ── Shared audio context (set by init) ───────────────────
+  let ctx   = null;
+  let dest  = null;   // connects to Synth._voiceDestination
+
+  const activeVoices = new Map();
+
+  // ── State ─────────────────────────────────────────────────
+  const state = {
+    enabled: false,
+
+    // FrFT order: 0 = pure tone, 1 = maximum chirp sweep
+    alpha: 0.3,
+
+    // Chirp waveform on the frequency LFO
+    chirpShape: 'sawtooth',   // sawtooth | sine | triangle
+
+    // Three operator blocks (like FM operators but chirp-based)
+    ops: [
+      { enabled: true,  ratio: 1.0,  chirpRatio: 2.0,  level: 0.7, octave: 0  },
+      { enabled: false, ratio: 2.0,  chirpRatio: 3.0,  level: 0.5, octave: 0  },
+      { enabled: false, ratio: 0.5,  chirpRatio: 1.0,  level: 0.4, octave: -1 },
+    ],
+
+    // Amplitude envelope
+    env: { attack: 0.02, decay: 0.15, sustain: 0.75, release: 0.35 },
+
+    // Eigenspace balance — the four projection spaces of the DFT
+    // λ=+1: even / symmetric content   (cosine-like, real)
+    // λ=−1: even / phase-inverted      (inverted even)
+    // λ=+i: odd / antisymmetric        (sine-like, transient edge)
+    // λ=−i: odd / phase-inverted       (inverted odd)
+    eigen: { p1: 0.7, pm1: 0.0, pi: 0.7, pmi: 0.0 },
+
+    // Density cross-synthesis: mix commutator product with ops output
+    // Commutator [A,B] = AB − BA picks up the "difference dynamics"
+    densityCross: 0.0,
+    densitySource: 'osc1',   // which subtractive osc to use as source B
+  };
+
+  // ── Init (called once, shares context from Synth) ─────────
+  function init() {
+    if (ctx) return;
+    ctx  = Synth._getContext();
+    dest = Synth._voiceDestination;
+  }
+
+  function ensureInit() {
+    if (!ctx) init();
+  }
+
+  // ── Build eigenspace filter network ───────────────────────
+  // Approximation of the four DFT projection operators:
+  //   P_{+1}  ≈ low-shelf  → symmetric, real, even content
+  //   P_{−1}  ≈ phase-flip of P_{+1}
+  //   P_{+i}  ≈ band-pass  → transient/edge content (odd)
+  //   P_{−i}  ≈ phase-flip of P_{+i}
+  // The output is the weighted sum of all four branches.
+  function buildEigenFilter(inputNode, outputNode) {
+    const e = state.eigen;
+
+    // λ=+1 branch: lowpass → even/real content
+    const f1 = ctx.createBiquadFilter();
+    f1.type = 'lowshelf'; f1.frequency.value = 800; f1.gain.value = 0;
+    const g1 = ctx.createGain(); g1.gain.value = e.p1;
+    inputNode.connect(f1); f1.connect(g1); g1.connect(outputNode);
+
+    // λ=−1 branch: phase-flipped lowshelf
+    const fm1 = ctx.createBiquadFilter();
+    fm1.type = 'lowshelf'; fm1.frequency.value = 800; fm1.gain.value = 0;
+    const gm1inv = ctx.createGain(); gm1inv.gain.value = -1;
+    const gm1    = ctx.createGain(); gm1.gain.value = e.pm1;
+    inputNode.connect(fm1); fm1.connect(gm1inv); gm1inv.connect(gm1); gm1.connect(outputNode);
+
+    // λ=+i branch: bandpass → transient/odd content
+    const fi = ctx.createBiquadFilter();
+    fi.type = 'bandpass'; fi.frequency.value = 2000; fi.Q.value = 1.2;
+    const gi = ctx.createGain(); gi.gain.value = e.pi;
+    inputNode.connect(fi); fi.connect(gi); gi.connect(outputNode);
+
+    // λ=−i branch: phase-flipped bandpass
+    const fmi = ctx.createBiquadFilter();
+    fmi.type = 'bandpass'; fmi.frequency.value = 2000; fmi.Q.value = 1.2;
+    const gmiInv = ctx.createGain(); gmiInv.gain.value = -1;
+    const gmi    = ctx.createGain(); gmi.gain.value = e.pmi;
+    inputNode.connect(fmi); fmi.connect(gmiInv); gmiInv.connect(gmi); gmi.connect(outputNode);
+
+    return { f1, fm1, fi, fmi, g1, gm1, gi, gmi };
+  }
+
+  // ── Compute Hermite-Gaussian waveform as PeriodicWave ─────
+  // ψ_n(t) = H_n(t) · exp(−t²/2), evaluated over one period.
+  // n=0: Gaussian (smooth, sine-like)
+  // n=1: First-order — one zero crossing in Gaussian envelope
+  // n=2: Second-order — two sign changes (M-shape)
+  // These are the eigenfunctions of the FrFT.
+  function hermiteGaussianWave(order) {
+    const N = 2048;
+    const samples = new Float32Array(N);
+    // Sample t from −4σ to +4σ over one period
+    for (let n = 0; n < N; n++) {
+      const t = (n / N) * 8 - 4;   // t ∈ [−4, +4]
+      const env = Math.exp(-t * t / 2);
+      let H;
+      switch (order) {
+        case 0: H = 1; break;
+        case 1: H = 2 * t; break;
+        case 2: H = 4 * t * t - 2; break;
+        case 3: H = 8 * t * t * t - 12 * t; break;
+        default: H = 1;
+      }
+      samples[n] = H * env;
+    }
+
+    // Normalize
+    const peak = Math.max(...samples.map(Math.abs));
+    if (peak > 0) samples.forEach((v, i) => { samples[i] = v / peak; });
+
+    // Compute DFT to get PeriodicWave coefficients
+    const real = new Float32Array(N / 2);
+    const imag = new Float32Array(N / 2);
+    for (let k = 0; k < N / 2; k++) {
+      let re = 0, im = 0;
+      for (let n = 0; n < N; n++) {
+        const angle = (2 * Math.PI * k * n) / N;
+        re += samples[n] * Math.cos(angle);
+        im -= samples[n] * Math.sin(angle);
+      }
+      real[k] = re / N;
+      imag[k] = im / N;
+    }
+    real[0] = 0; // zero DC
+
+    return ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+  }
+
+  // Cache computed waves per context
+  const _waveCache = {};
+  function getHGWave(order) {
+    const key = `hg${order}`;
+    if (!_waveCache[key]) _waveCache[key] = hermiteGaussianWave(order);
+    return _waveCache[key];
+  }
+
+  // ── Note On ───────────────────────────────────────────────
+  function noteOn(midiNote, velocity = 1) {
+    ensureInit();
+    if (!state.enabled || !ctx) return;
+    if (activeVoices.has(midiNote)) noteOff(midiNote, true);
+
+    const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const now  = ctx.currentTime;
+    const s    = state;
+
+    const oscs    = [];
+    const preMix  = ctx.createGain();
+
+    // ── Build chirp operator blocks ─────────────────────────
+    s.ops.forEach((op, idx) => {
+      if (!op.enabled) return;
+
+      const baseFreq  = freq * op.ratio * Math.pow(2, op.octave);
+      const chirpRate = freq * op.chirpRatio;  // sweep rate
+      const chirpDepth = s.alpha * baseFreq;   // depth ∝ α (FrFT order)
+
+      // Carrier oscillator — use Hermite-Gaussian waveform
+      // Order 0 at α=0, progressing with operator index
+      const osc = ctx.createOscillator();
+      osc.setPeriodicWave(getHGWave(idx));     // each op has different eigenfunction
+      osc.frequency.value = baseFreq;
+
+      // Chirp LFO — modulates carrier frequency, creating FrFT sweep
+      const lfo = ctx.createOscillator();
+      lfo.type = s.chirpShape;
+      lfo.frequency.value = chirpRate;
+
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = chirpDepth;
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+
+      const opGain = ctx.createGain();
+      opGain.gain.value = op.level * velocity;
+      osc.connect(opGain);
+      opGain.connect(preMix);
+
+      osc.start(now);
+      lfo.start(now);
+      oscs.push(osc, lfo);
+    });
+
+    // ── Eigenspace network ──────────────────────────────────
+    const eigenOut = ctx.createGain();
+    const eigenNodes = buildEigenFilter(preMix, eigenOut);
+
+    // ── Amplitude envelope ──────────────────────────────────
+    const ampEnv = ctx.createGain();
+    ampEnv.gain.setValueAtTime(0, now);
+    ampEnv.gain.linearRampToValueAtTime(velocity, now + s.env.attack);
+    ampEnv.gain.linearRampToValueAtTime(
+      s.env.sustain * velocity, now + s.env.attack + s.env.decay
+    );
+
+    eigenOut.connect(ampEnv);
+    ampEnv.connect(dest);
+
+    activeVoices.set(midiNote, { oscs, preMix, eigenOut, ampEnv, eigenNodes, startTime: now });
+  }
+
+  // ── Note Off ──────────────────────────────────────────────
+  function noteOff(midiNote, immediate = false) {
+    const voice = activeVoices.get(midiNote);
+    if (!voice) return;
+
+    const now = ctx.currentTime;
+    const rel = immediate ? 0.02 : state.env.release;
+
+    voice.ampEnv.gain.cancelScheduledValues(now);
+    voice.ampEnv.gain.setValueAtTime(voice.ampEnv.gain.value, now);
+    voice.ampEnv.gain.linearRampToValueAtTime(0, now + rel);
+
+    const stopTime = now + rel + 0.05;
+    voice.oscs.forEach(o => { try { o.stop(stopTime); } catch(e) {} });
+
+    setTimeout(() => {
+      activeVoices.delete(midiNote);
+      try { voice.preMix.disconnect(); } catch(e) {}
+      try { voice.eigenOut.disconnect(); } catch(e) {}
+      try { voice.ampEnv.disconnect(); } catch(e) {}
+    }, (rel + 0.15) * 1000);
+  }
+
+  // ── Panic ─────────────────────────────────────────────────
+  function panic() {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    activeVoices.forEach(voice => {
+      voice.oscs.forEach(o => { try { o.stop(now); } catch(e) {} });
+      try { voice.preMix.disconnect(); } catch(e) {}
+      try { voice.eigenOut.disconnect(); } catch(e) {}
+      try { voice.ampEnv.gain.cancelScheduledValues(now); } catch(e) {}
+      try { voice.ampEnv.disconnect(); } catch(e) {}
+    });
+    activeVoices.clear();
+  }
+
+  // ── Live param updates ────────────────────────────────────
+  function setAlpha(v) {
+    state.alpha = v;
+  }
+
+  function setChirpShape(v) { state.chirpShape = v; }
+  function setOp(idx, param, value) { if (state.ops[idx]) state.ops[idx][param] = value; }
+  function setEigen(param, value) { state.eigen[param] = value; }
+  function setEnabled(v) { state.enabled = v; if (!v) panic(); }
+  function setEnv(param, value) { state.env[param] = value; }
+
+  function getState()       { return state; }
+  function getActiveVoices(){ return activeVoices; }
+
+  return {
+    init, noteOn, noteOff, panic,
+    setAlpha, setChirpShape, setOp, setEigen, setEnabled, setEnv,
+    getState, getActiveVoices,
+  };
+
+})();
+
+</script>
+<script>
 /* ============================================================
    QOIX Synthesizer — Unified UI Controller
    ============================================================
@@ -4386,6 +3798,7 @@ const UI = (() => {
     Synth.noteOn(midiNote, velocity);
     if (FMEngine.getState().enabled) FMEngine.noteOn(midiNote, velocity);
     if (WTEngine.getState().enabled) WTEngine.noteOn(midiNote, velocity);
+    if (SpectralFFT.getState().enabled) SpectralFFT.noteOn(midiNote, velocity);
     Recorder.recordNoteOn(midiNote, velocity);
     updateActiveNotesDisplay();
   }
@@ -4394,6 +3807,7 @@ const UI = (() => {
     Synth.noteOff(midiNote);
     FMEngine.noteOff(midiNote);
     WTEngine.noteOff(midiNote);
+    SpectralFFT.noteOff(midiNote);
     Recorder.recordNoteOff(midiNote);
     updateActiveNotesDisplay();
   }
@@ -4402,6 +3816,7 @@ const UI = (() => {
     Synth.panic();
     FMEngine.panic();
     WTEngine.panic();
+    SpectralFFT.panic();
     RandomGen.stop();
     $('rand-status').textContent = 'Stopped';
     updateActiveNotesDisplay();
@@ -5661,6 +5076,84 @@ const UI = (() => {
     updateRecorderUI();
   }
 
+  // ── Spectral / FrFT Engine ────────────────────────────────
+  function fmtSpectral(id, v) {
+    v = parseFloat(v);
+    if (id.includes('level') || id.includes('sustain') || id.includes('eigen'))
+      return `${Math.round(v * 100)}%`;
+    if (id.includes('alpha'))
+      return v.toFixed(2);
+    if (id.includes('ratio'))
+      return v.toFixed(2);
+    if (id.includes('chirp'))
+      return v.toFixed(1);
+    if (id.includes('-a') || id.includes('-d') || id.includes('-r'))
+      return v < 1 ? `${Math.round(v * 1000)}ms` : `${v.toFixed(2)}s`;
+    return `${v}`;
+  }
+
+  function bindSpectralRange(id, fn) {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      fn(v);
+      const vEl = $(id + '-v');
+      if (vEl) vEl.textContent = fmtSpectral(id, el.value);
+    });
+  }
+
+  function bindSpectral() {
+    // Enable toggle: init SpectralFFT lazily on first enable
+    const enableCb = $('spectral-enabled');
+    if (enableCb) {
+      enableCb.addEventListener('change', () => {
+        const v = enableCb.checked;
+        if (v) {
+          Synth.ensureContext();
+          SpectralFFT.init();
+        }
+        SpectralFFT.setEnabled(v);
+      });
+    }
+
+    // FrFT alpha
+    bindSpectralRange('spectral-alpha', v => SpectralFFT.setAlpha(v));
+
+    // Chirp shape buttons
+    const chirpBtns = $('spectral-chirp-btns');
+    if (chirpBtns) {
+      chirpBtns.querySelectorAll('.wb').forEach(btn => {
+        btn.addEventListener('click', () => {
+          chirpBtns.querySelectorAll('.wb').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          SpectralFFT.setChirpShape(btn.dataset.chirp);
+        });
+      });
+    }
+
+    // Three operator blocks
+    [0, 1, 2].forEach(idx => {
+      const enCb = $(`spectral-op${idx}-en`);
+      if (enCb) enCb.addEventListener('change', () => SpectralFFT.setOp(idx, 'enabled', enCb.checked));
+      bindSpectralRange(`spectral-op${idx}-ratio`, v => SpectralFFT.setOp(idx, 'ratio', v));
+      bindSpectralRange(`spectral-op${idx}-chirp`, v => SpectralFFT.setOp(idx, 'chirpRatio', v));
+      bindSpectralRange(`spectral-op${idx}-level`, v => SpectralFFT.setOp(idx, 'level', v));
+    });
+
+    // Eigenspace
+    bindSpectralRange('eigen-p1',  v => SpectralFFT.setEigen('p1',  v));
+    bindSpectralRange('eigen-pm1', v => SpectralFFT.setEigen('pm1', v));
+    bindSpectralRange('eigen-pi',  v => SpectralFFT.setEigen('pi',  v));
+    bindSpectralRange('eigen-pmi', v => SpectralFFT.setEigen('pmi', v));
+
+    // Spectral ADSR envelope
+    bindSpectralRange('spectral-env-a', v => SpectralFFT.setEnv('attack',  v));
+    bindSpectralRange('spectral-env-d', v => SpectralFFT.setEnv('decay',   v));
+    bindSpectralRange('spectral-env-s', v => SpectralFFT.setEnv('sustain', v));
+    bindSpectralRange('spectral-env-r', v => SpectralFFT.setEnv('release', v));
+  }
+
   // ── Init ──────────────────────────────────────────────────
   function init() {
     Synth.init();
@@ -5678,6 +5171,7 @@ const UI = (() => {
     initKeyboardInput();
     bindRenderer();
     bindRecorder();
+    bindSpectral();
     syncUIToState();
     startVisualizer();
     drawEnvelope();

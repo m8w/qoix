@@ -177,6 +177,7 @@ const UI = (() => {
     Synth.noteOn(midiNote, velocity);
     if (FMEngine.getState().enabled) FMEngine.noteOn(midiNote, velocity);
     if (WTEngine.getState().enabled) WTEngine.noteOn(midiNote, velocity);
+    if (SpectralFFT.getState().enabled) SpectralFFT.noteOn(midiNote, velocity);
     Recorder.recordNoteOn(midiNote, velocity);
     updateActiveNotesDisplay();
   }
@@ -185,6 +186,7 @@ const UI = (() => {
     Synth.noteOff(midiNote);
     FMEngine.noteOff(midiNote);
     WTEngine.noteOff(midiNote);
+    SpectralFFT.noteOff(midiNote);
     Recorder.recordNoteOff(midiNote);
     updateActiveNotesDisplay();
   }
@@ -193,6 +195,7 @@ const UI = (() => {
     Synth.panic();
     FMEngine.panic();
     WTEngine.panic();
+    SpectralFFT.panic();
     RandomGen.stop();
     $('rand-status').textContent = 'Stopped';
     updateActiveNotesDisplay();
@@ -1452,6 +1455,84 @@ const UI = (() => {
     updateRecorderUI();
   }
 
+  // ── Spectral / FrFT Engine ────────────────────────────────
+  function fmtSpectral(id, v) {
+    v = parseFloat(v);
+    if (id.includes('level') || id.includes('sustain') || id.includes('eigen'))
+      return `${Math.round(v * 100)}%`;
+    if (id.includes('alpha'))
+      return v.toFixed(2);
+    if (id.includes('ratio'))
+      return v.toFixed(2);
+    if (id.includes('chirp'))
+      return v.toFixed(1);
+    if (id.includes('-a') || id.includes('-d') || id.includes('-r'))
+      return v < 1 ? `${Math.round(v * 1000)}ms` : `${v.toFixed(2)}s`;
+    return `${v}`;
+  }
+
+  function bindSpectralRange(id, fn) {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      fn(v);
+      const vEl = $(id + '-v');
+      if (vEl) vEl.textContent = fmtSpectral(id, el.value);
+    });
+  }
+
+  function bindSpectral() {
+    // Enable toggle: init SpectralFFT lazily on first enable
+    const enableCb = $('spectral-enabled');
+    if (enableCb) {
+      enableCb.addEventListener('change', () => {
+        const v = enableCb.checked;
+        if (v) {
+          Synth.ensureContext();
+          SpectralFFT.init();
+        }
+        SpectralFFT.setEnabled(v);
+      });
+    }
+
+    // FrFT alpha
+    bindSpectralRange('spectral-alpha', v => SpectralFFT.setAlpha(v));
+
+    // Chirp shape buttons
+    const chirpBtns = $('spectral-chirp-btns');
+    if (chirpBtns) {
+      chirpBtns.querySelectorAll('.wb').forEach(btn => {
+        btn.addEventListener('click', () => {
+          chirpBtns.querySelectorAll('.wb').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          SpectralFFT.setChirpShape(btn.dataset.chirp);
+        });
+      });
+    }
+
+    // Three operator blocks
+    [0, 1, 2].forEach(idx => {
+      const enCb = $(`spectral-op${idx}-en`);
+      if (enCb) enCb.addEventListener('change', () => SpectralFFT.setOp(idx, 'enabled', enCb.checked));
+      bindSpectralRange(`spectral-op${idx}-ratio`, v => SpectralFFT.setOp(idx, 'ratio', v));
+      bindSpectralRange(`spectral-op${idx}-chirp`, v => SpectralFFT.setOp(idx, 'chirpRatio', v));
+      bindSpectralRange(`spectral-op${idx}-level`, v => SpectralFFT.setOp(idx, 'level', v));
+    });
+
+    // Eigenspace
+    bindSpectralRange('eigen-p1',  v => SpectralFFT.setEigen('p1',  v));
+    bindSpectralRange('eigen-pm1', v => SpectralFFT.setEigen('pm1', v));
+    bindSpectralRange('eigen-pi',  v => SpectralFFT.setEigen('pi',  v));
+    bindSpectralRange('eigen-pmi', v => SpectralFFT.setEigen('pmi', v));
+
+    // Spectral ADSR envelope
+    bindSpectralRange('spectral-env-a', v => SpectralFFT.setEnv('attack',  v));
+    bindSpectralRange('spectral-env-d', v => SpectralFFT.setEnv('decay',   v));
+    bindSpectralRange('spectral-env-s', v => SpectralFFT.setEnv('sustain', v));
+    bindSpectralRange('spectral-env-r', v => SpectralFFT.setEnv('release', v));
+  }
+
   // ── Init ──────────────────────────────────────────────────
   function init() {
     Synth.init();
@@ -1469,6 +1550,7 @@ const UI = (() => {
     initKeyboardInput();
     bindRenderer();
     bindRecorder();
+    bindSpectral();
     syncUIToState();
     startVisualizer();
     drawEnvelope();
