@@ -80,7 +80,9 @@ const FMEngine = (() => {
     if (!_ctx || !state.enabled) return;
     if (fmVoices.has(midiNote)) noteOff(midiNote, true);
 
-    const baseFreq = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const baseFreq = (typeof Microtonal !== 'undefined' && Microtonal.getState().enabled)
+      ? Microtonal.noteToFreq(midiNote)
+      : 440 * Math.pow(2, (midiNote - 69) / 12);
     const now = _ctx.currentTime;
     const algo = ALGORITHMS[state.algorithm];
     const ops = state.operators;

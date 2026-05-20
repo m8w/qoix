@@ -130,7 +130,10 @@ const WTEngine = (() => {
     if (!_ctx || !state.enabled) return;
     if (activeVoices.has(midiNote)) noteOff(midiNote, true);
 
-    const freq = 440 * Math.pow(2, (midiNote - 69) / 12) * Math.pow(2, state.octave);
+    const baseFreq = (typeof Microtonal !== 'undefined' && Microtonal.getState().enabled)
+      ? Microtonal.noteToFreq(midiNote)
+      : 440 * Math.pow(2, (midiNote - 69) / 12);
+    const freq = baseFreq * Math.pow(2, state.octave);
     const now = _ctx.currentTime;
 
     const osc = _ctx.createOscillator();

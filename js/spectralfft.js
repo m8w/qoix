@@ -168,7 +168,9 @@ const SpectralFFT = (() => {
     if (!state.enabled || !ctx) return;
     if (activeVoices.has(midiNote)) noteOff(midiNote, true);
 
-    const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const freq = (typeof Microtonal !== 'undefined' && Microtonal.getState().enabled)
+      ? Microtonal.noteToFreq(midiNote)
+      : 440 * Math.pow(2, (midiNote - 69) / 12);
     const now  = ctx.currentTime;
     const s    = state;
 

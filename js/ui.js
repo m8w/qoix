@@ -1455,6 +1455,114 @@ const UI = (() => {
     updateRecorderUI();
   }
 
+  // ── Microtonal ────────────────────────────────────────────
+  const NOTE_NAMES_FULL = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+  function buildMicroRootSelect() {
+    const sel = $('micro-root-select');
+    if (!sel) return;
+    sel.innerHTML = '';
+    for (let midi = 0; midi <= 127; midi++) {
+      const oct = Math.floor(midi / 12) - 1;
+      const name = NOTE_NAMES_FULL[midi % 12] + oct;
+      const opt = document.createElement('option');
+      opt.value = midi;
+      opt.textContent = `${name} (${midi})`;
+      if (midi === 60) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  function buildMicroScaleSelect() {
+    const sel = $('micro-scale-select');
+    if (!sel) return;
+    sel.innerHTML = '';
+    Microtonal.getScaleNames().forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+  }
+
+  function updateMicroDisplay() {
+    const st = Microtonal.getState();
+    const descEl = $('micro-scale-desc');
+    const tableEl = $('micro-cents-table');
+    const loadedEl = $('micro-loaded-name');
+
+    if (descEl && st.scale) descEl.textContent = st.scale.description || '';
+    if (loadedEl) loadedEl.textContent = st.scaleName || '';
+
+    if (!tableEl || !st.scale) return;
+    const rows = Microtonal.getCentsTable();
+    tableEl.innerHTML = rows.map((r, i) =>
+      `<div class="micro-degree-row">
+        <span class="micro-deg">${i === 0 ? '&#9670;' : i}</span>
+        <span class="micro-cents">${r.cents >= 0 ? '+' : ''}${r.cents.toFixed(3)}&#x00A2;</span>
+        <span class="micro-label">${r.label}</span>
+      </div>`
+    ).join('');
+  }
+
+  function bindMicrotonal() {
+    buildMicroScaleSelect();
+    buildMicroRootSelect();
+    updateMicroDisplay();
+
+    // Enable toggle
+    const enableCb = $('micro-enabled');
+    if (enableCb) enableCb.addEventListener('change', () => {
+      Microtonal.setEnabled(enableCb.checked);
+    });
+
+    // Scale selection
+    const scaleSel = $('micro-scale-select');
+    if (scaleSel) scaleSel.addEventListener('change', () => {
+      Microtonal.setScaleByName(scaleSel.value);
+      updateMicroDisplay();
+    });
+
+    // Root note
+    const rootSel = $('micro-root-select');
+    if (rootSel) rootSel.addEventListener('change', () => {
+      const midi = parseInt(rootSel.value);
+      Microtonal.setRoot(midi);
+      const rootV = $('micro-root-v');
+      if (rootV) rootV.textContent = NOTE_NAMES_FULL[midi % 12] + (Math.floor(midi / 12) - 1);
+    });
+
+    // Load .scl file
+    const sclInput = $('micro-scl-input');
+    if (sclInput) sclInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          Microtonal.loadScl(ev.target.result);
+          updateMicroDisplay();
+          // Sync the scale select to show "(custom)" or just leave as-is
+          const loadedEl = $('micro-loaded-name');
+          if (loadedEl) loadedEl.textContent = 'Custom: ' + file.name;
+        } catch (err) {
+          alert('Error loading .scl file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+
+    // Reset to built-in
+    const resetBtn = $('micro-reset-btn');
+    if (resetBtn) resetBtn.addEventListener('click', () => {
+      const sel = $('micro-scale-select');
+      const name = sel ? sel.value : '12-EDO (Standard)';
+      Microtonal.setScaleByName(name);
+      updateMicroDisplay();
+    });
+  }
+
   // ── Spectral / FrFT Engine ────────────────────────────────
   function fmtSpectral(id, v) {
     v = parseFloat(v);
@@ -1551,6 +1659,7 @@ const UI = (() => {
     bindRenderer();
     bindRecorder();
     bindSpectral();
+    bindMicrotonal();
     syncUIToState();
     startVisualizer();
     drawEnvelope();

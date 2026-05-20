@@ -123,7 +123,7 @@ const Synth = (() => {
 
   function ensureContext() {
     if (!ctx) init();
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   }
 
   // ── Distortion curve ──────────────────────────────────────
@@ -806,6 +806,9 @@ const Synth = (() => {
 
   // ── Helpers ───────────────────────────────────────────────
   function midiToFreq(note) {
+    if (typeof Microtonal !== 'undefined' && Microtonal.getState().enabled) {
+      return Microtonal.noteToFreq(note);
+    }
     return 440 * Math.pow(2, (note - 69) / 12);
   }
 

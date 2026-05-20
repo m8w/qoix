@@ -45,6 +45,7 @@
     <button class="tab-btn" data-tab="render">&#9654; Render</button>
     <button class="tab-btn" data-tab="rec">&#9679; Rec</button>
     <button class="tab-btn" data-tab="spectral">&#9670; Spectral</button>
+    <button class="tab-btn" data-tab="micro">&#9835; Micro</button>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════
@@ -830,6 +831,57 @@
     </div><!-- .spectral-grid -->
   </div><!-- #tab-spectral -->
 
+  <!-- ═══════════════════════════════════════════════════
+       TAB: MICROTONAL
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-micro">
+    <div class="micro-grid">
+
+      <!-- Enable + Scale select -->
+      <section class="panel micro-main-panel">
+        <h2>Microtonal Tuning
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="micro-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+        <p class="spectral-desc">Retunes all oscillators using Scala (.scl) scales.
+          When enabled, every engine (Subtractive, FM, Wavetable, Spectral) uses the
+          selected tuning. Root note sets which MIDI key plays degree 0 of the scale.</p>
+
+        <div class="section-sub">Built-in Scale Library</div>
+        <div class="ctrl-row">
+          <span class="lbl">Scale</span>
+          <select id="micro-scale-select" style="flex:1"></select>
+        </div>
+
+        <div class="section-sub">Root Note</div>
+        <div class="ctrl-row">
+          <span class="lbl">Root</span>
+          <select id="micro-root-select" style="flex:1"></select>
+          <span class="val" id="micro-root-v">C4</span>
+        </div>
+
+        <div class="section-sub">Custom Scale (.scl)</div>
+        <div class="ctrl-row" style="gap:6px;flex-wrap:wrap">
+          <label class="render-btn" style="cursor:pointer">
+            &#8657; Load .scl file
+            <input type="file" id="micro-scl-input" accept=".scl,.txt" style="display:none" />
+          </label>
+          <button id="micro-reset-btn" class="sm-btn">Reset to Built-in</button>
+        </div>
+        <div id="micro-loaded-name" style="font-size:0.75rem;color:var(--dim);margin-top:6px"></div>
+      </section>
+
+      <!-- Scale display -->
+      <section class="panel micro-display-panel">
+        <h2>Scale Degrees</h2>
+        <p class="spectral-desc" id="micro-scale-desc"></p>
+        <div id="micro-cents-table" class="micro-cents-table"></div>
+      </section>
+
+    </div><!-- .micro-grid -->
+  </div><!-- #tab-micro -->
+
   <!-- ── Always-visible: Keyboard ───────────────────── -->
   <section class="keyboard-section">
     <div class="kbd-header">
@@ -859,6 +911,7 @@
 <script src="js/renderer.js"></script>
 <script src="js/recorder.js"></script>
 <script src="js/spectralfft.js"></script>
+<script src="js/microtonal.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

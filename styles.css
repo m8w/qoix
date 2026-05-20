@@ -980,3 +980,54 @@ footer {
   font-size: 0.65em;
   vertical-align: sub;
 }
+
+/* ── Microtonal Tab ──────────────────────────────────────── */
+.micro-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+}
+
+@media (max-width: 700px) {
+  .micro-grid { grid-template-columns: 1fr; }
+}
+
+.micro-cents-table {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.micro-degree-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+}
+
+.micro-deg {
+  width: 22px;
+  text-align: center;
+  color: var(--accent);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.micro-cents {
+  width: 90px;
+  font-family: monospace;
+  color: var(--glow);
+  flex-shrink: 0;
+}
+
+.micro-label {
+  color: var(--dim);
+  font-size: 0.73rem;
+}
