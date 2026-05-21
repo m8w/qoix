@@ -1698,10 +1698,18 @@ const UI = (() => {
       }
     }, { passive: true });
     document.addEventListener('touchend', e => {
-      for (const touch of e.changedTouches) _touchNotes.delete(touch.identifier);
+      for (const touch of e.changedTouches) {
+        const note = _touchNotes.get(touch.identifier);
+        if (note != null) releaseNote(note);
+        _touchNotes.delete(touch.identifier);
+      }
     }, { passive: true });
     document.addEventListener('touchcancel', e => {
-      for (const touch of e.changedTouches) _touchNotes.delete(touch.identifier);
+      for (const touch of e.changedTouches) {
+        const note = _touchNotes.get(touch.identifier);
+        if (note != null) releaseNote(note);
+        _touchNotes.delete(touch.identifier);
+      }
     }, { passive: true });
 
     // Desktop (Electron) integrations
