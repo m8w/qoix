@@ -75,10 +75,15 @@ const WTEngine = (() => {
     detune: 0,
   };
 
+  const DEFAULT_STATE = JSON.parse(JSON.stringify(state));
+
   // ── Context ───────────────────────────────────────────────
   let _ctx = null;
   let _destination = null;
   const activeVoices = new Map();
+
+  // Mod matrix offset on the table position, applied on top of state.position
+  let _modPosition = 0;
 
   // Cached PeriodicWave objects per context
   const _waveCache = new Map();
@@ -108,9 +113,20 @@ const WTEngine = (() => {
     return _ctx.createPeriodicWave(real, imag, { disableNormalization: false });
   }
 
+  // Table position including any mod matrix modulation
+  function effectivePosition() {
+    return Math.max(0, Math.min(1, state.position + _modPosition));
+  }
+
   // ── Morphed wave (linear interpolation between A and B) ──
+  // Quantised to 1/128 and cached: the mod matrix can sweep the position every
+  // frame without rebuilding a PeriodicWave each time.
   function getMorphedWave(pos) {
     pos = Math.max(0, Math.min(1, pos));
+    const step = Math.round(pos * 128);
+    const key  = `${state.tableA}|${state.tableB}|${step}`;
+    if (_waveCache.has(key)) return _waveCache.get(key);
+    pos = step / 128;
     const tA = WAVETABLE_BANK[state.tableA];
     const tB = WAVETABLE_BANK[state.tableB];
     if (!tA || !tB) return null;
@@ -122,7 +138,9 @@ const WTEngine = (() => {
       const b = i < tB.imag.length ? tB.imag[i] : 0;
       imag[i] = a * (1 - pos) + b * pos;
     }
-    return _ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+    const wave = _ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+    _waveCache.set(key, wave);
+    return wave;
   }
 
   // ── Note on ───────────────────────────────────────────────
@@ -142,7 +160,7 @@ const WTEngine = (() => {
     if (state.mode === 'oxford') {
       osc.setPeriodicWave(getOxfordWave());
     } else {
-      const wave = getMorphedWave(state.position);
+      const wave = getMorphedWave(effectivePosition());
       if (wave) osc.setPeriodicWave(wave);
     }
 
@@ -182,7 +200,7 @@ const WTEngine = (() => {
       if (state.mode === 'oxford') {
         osc.setPeriodicWave(getOxfordWave());
       } else {
-        const wave = getMorphedWave(state.position);
+        const wave = getMorphedWave(effectivePosition());
         if (wave) osc.setPeriodicWave(wave);
       }
     });
@@ -194,6 +212,17 @@ const WTEngine = (() => {
   function setTableA(n) { state.tableA = n; updateWaveform(); }
   function setTableB(n) { state.tableB = n; updateWaveform(); }
   function setPosition(v) { state.position = parseFloat(v); updateWaveform(); }
+
+  // Mod matrix → WT Position. Called every frame, so only push a new waveform
+  // when the quantised position actually moves.
+  let _lastAppliedStep = null;
+  function setModPosition(v) {
+    _modPosition = parseFloat(v) || 0;
+    const step = Math.round(effectivePosition() * 128);
+    if (step === _lastAppliedStep) return;
+    _lastAppliedStep = step;
+    if (state.mode === 'wavetable' && activeVoices.size) updateWaveform();
+  }
   function setHarmonic(idx, v) {
     state.harmonics[idx] = parseFloat(v);
     updateWaveform();
@@ -213,15 +242,23 @@ const WTEngine = (() => {
 
   function loadState(s) {
     Object.assign(state, s);
+    if (Array.isArray(s.harmonics)) state.harmonics = Array.from(s.harmonics);
     _waveCache.clear();
+    _lastAppliedStep = null;
     updateWaveform();
+  }
+
+  // Back to factory defaults (used when a patch carries no wavetable settings)
+  function reset() {
+    loadState(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+    _modPosition = 0;
   }
 
   return {
     setContext, noteOn, noteOff, panic,
     setEnabled, setMode, setTableA, setTableB,
-    setPosition, setHarmonic, setLevel, setOctave, setDetune,
-    getState, getTableNames, loadState,
+    setPosition, setModPosition, setHarmonic, setLevel, setOctave, setDetune,
+    getState, getTableNames, loadState, reset,
     get activeVoices() { return activeVoices; },
   };
 

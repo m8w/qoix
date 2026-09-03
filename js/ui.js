@@ -1078,6 +1078,9 @@ const UI = (() => {
   function snapshotPatch() {
     const snap = JSON.parse(JSON.stringify(Synth.getState()));
     snap.modMatrix = ModMatrix.getState();
+    snap.fm       = JSON.parse(JSON.stringify(FMEngine.getState()));
+    snap.wt       = JSON.parse(JSON.stringify(WTEngine.getState()));
+    snap.spectral = JSON.parse(JSON.stringify(SpectralFFT.getState()));
     return snap;
   }
 
@@ -1085,20 +1088,28 @@ const UI = (() => {
   // is heard as it was designed rather than through the previous patch's
   // modulation routings and extra synthesis layers.
   function applyPatch(p) {
-    // The matrix travels with the patch but is not part of the synth state,
-    // so keep it out of the deep merge
-    const { modMatrix, ...synthPatch } = p;
+    // The matrix and the extra engines travel with the patch but are not part
+    // of the synth state, so keep them out of the deep merge
+    const { modMatrix, fm, wt, spectral, ...synthPatch } = p;
     Synth.loadPreset(synthPatch);
 
     ModMatrix.reset();
     if (modMatrix) ModMatrix.loadState(modMatrix);
     buildModMatrix();
 
-    // Extra engines stack on top of the subtractive patch — clear them unless
-    // this patch explicitly asks for them.
-    setLayerEnabled('fm-enabled',       !!p.fm,       v => FMEngine.setEnabled(v));
-    setLayerEnabled('wt-enabled',       !!p.wt,       v => WTEngine.setEnabled(v));
-    setLayerEnabled('spectral-enabled', !!p.spectral, v => SpectralFFT.setEnabled(v));
+    // Extra engines stack on top of the subtractive patch. A patch that
+    // carries them restores them exactly; one that does not gets the factory
+    // defaults, so nothing from the previous patch leaks through.
+    if (fm) FMEngine.loadState(fm); else FMEngine.reset();
+    if (wt) WTEngine.loadState(wt); else WTEngine.reset();
+    if (spectral) SpectralFFT.loadState(spectral); else SpectralFFT.reset();
+
+    setLayerEnabled('fm-enabled',       FMEngine.getState().enabled,    v => FMEngine.setEnabled(v));
+    setLayerEnabled('wt-enabled',       WTEngine.getState().enabled,    v => WTEngine.setEnabled(v));
+    setLayerEnabled('spectral-enabled', SpectralFFT.getState().enabled, v => {
+      if (v) { Synth.ensureContext(); SpectralFFT.init(); }
+      SpectralFFT.setEnabled(v);
+    });
 
     syncUIToState();
   }
@@ -1106,7 +1117,99 @@ const UI = (() => {
   function setLayerEnabled(checkboxId, enabled, fn) {
     const el = $(checkboxId);
     if (el) el.checked = enabled;
+    // An engine that is switched on needs the live context and voice bus
+    if (enabled && Synth._getContext()) {
+      if (checkboxId === 'fm-enabled') FMEngine.setContext(Synth._getContext(), Synth._voiceDestination);
+      if (checkboxId === 'wt-enabled') WTEngine.setContext(Synth._getContext(), Synth._voiceDestination);
+    }
     fn(enabled);
+  }
+
+  // ── Sync the FM tab from FMEngine state ───────────────────
+  function syncFMUI() {
+    const fs = FMEngine.getState();
+    const algo = $('fm-algorithm');
+    if (algo) { algo.value = fs.algorithm; drawFMAlgorithm(parseInt(fs.algorithm)); }
+
+    fs.operators.forEach((op, i) => {
+      const put = (cls, value, text) => {
+        document.querySelectorAll(`.fm-${cls}[data-op="${i}"]`).forEach(el => { el.value = value; });
+        document.querySelectorAll(`.fm-${cls}-v[data-op="${i}"]`).forEach(el => { el.textContent = text; });
+      };
+      const ms = v => v < 1 ? `${Math.round(v * 1000)}ms` : `${v.toFixed(2)}s`;
+      put('ratio',   op.ratio,   op.ratio.toFixed(2));
+      put('level',   op.level,   `${Math.round(op.level * 100)}%`);
+      put('attack',  op.attack,  ms(op.attack));
+      put('decay',   op.decay,   ms(op.decay));
+      put('sustain', op.sustain, `${Math.round(op.sustain * 100)}%`);
+      put('release', op.release, ms(op.release));
+    });
+  }
+
+  // ── Sync the Wavetable / Oxford tab from WTEngine state ───
+  function syncWTUI() {
+    const ws = WTEngine.getState();
+
+    const sr = (id, v) => {
+      const el = $(id); if (!el) return;
+      el.value = v;
+      const vEl = $(id + '-v'); if (vEl) vEl.textContent = fmt(id, v);
+    };
+    sr('wt-level', ws.level); sr('wt-octave', ws.octave);
+    sr('wt-detune', ws.detune); sr('wt-position', ws.position);
+
+    const a = $('wt-tableA'); if (a) a.value = ws.tableA;
+    const b = $('wt-tableB'); if (b) b.value = ws.tableB;
+    document.querySelectorAll('#wt-table-grid .wt-table-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent === ws.tableA);
+    });
+
+    document.querySelectorAll('[data-wtmode]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.wtmode === ws.mode);
+    });
+    if ($('wt-table-panel'))  $('wt-table-panel').style.display  = ws.mode === 'wavetable' ? '' : 'none';
+    if ($('wt-oxford-panel')) $('wt-oxford-panel').style.display = ws.mode === 'oxford'    ? '' : 'none';
+
+    document.querySelectorAll('#harmonic-grid .harmonic-col').forEach((col, i) => {
+      const v = i < ws.harmonics.length ? ws.harmonics[i] : 0;
+      const sl = col.querySelector('.harm-slider');
+      const bar = col.querySelector('.harm-bar');
+      const vEl = col.querySelector('.val');
+      if (sl)  sl.value = v;
+      if (bar) bar.style.height = `${v * 100}%`;
+      if (vEl) vEl.textContent = `${Math.round(v * 100)}%`;
+    });
+
+    drawWavePreview();
+    drawOxfordSpectrum();
+  }
+
+  // ── Sync the Spectral tab from SpectralFFT state ──────────
+  function syncSpectralUI() {
+    const ss = SpectralFFT.getState();
+    const sr = (id, v) => {
+      const el = $(id); if (!el) return;
+      el.value = v;
+      const vEl = $(id + '-v'); if (vEl) vEl.textContent = fmtSpectral(id, v);
+    };
+
+    sr('spectral-alpha', ss.alpha);
+    document.querySelectorAll('#spectral-chirp-btns .wb').forEach(b => {
+      b.classList.toggle('active', b.dataset.chirp === ss.chirpShape);
+    });
+
+    ss.ops.forEach((op, i) => {
+      const en = $(`spectral-op${i}-en`); if (en) en.checked = op.enabled;
+      sr(`spectral-op${i}-ratio`, op.ratio);
+      sr(`spectral-op${i}-chirp`, op.chirpRatio);
+      sr(`spectral-op${i}-level`, op.level);
+    });
+
+    sr('eigen-p1',  ss.eigen.p1);  sr('eigen-pm1', ss.eigen.pm1);
+    sr('eigen-pi',  ss.eigen.pi);  sr('eigen-pmi', ss.eigen.pmi);
+
+    sr('spectral-env-a', ss.env.attack);  sr('spectral-env-d', ss.env.decay);
+    sr('spectral-env-s', ss.env.sustain); sr('spectral-env-r', ss.env.release);
   }
 
   // ── Sync UI from engine state ─────────────────────────────
@@ -1206,6 +1309,14 @@ const UI = (() => {
     document.querySelectorAll('[data-osc="lfo2"] .wb').forEach(b => {
       b.classList.toggle('active', b.dataset.wave === l2.wave);
     });
+
+    // The extra engines keep their own state and their own tabs
+    sc('fm-enabled', FMEngine.getState().enabled);
+    sc('wt-enabled', WTEngine.getState().enabled);
+    sc('spectral-enabled', SpectralFFT.getState().enabled);
+    syncFMUI();
+    syncWTUI();
+    syncSpectralUI();
   }
 
   // ── Envelope canvas draw ──────────────────────────────────
@@ -1940,6 +2051,6 @@ const UI = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { updateActiveNotes: updateActiveNotesDisplay };
+  return { updateActiveNotes: updateActiveNotesDisplay, applyPatch };
 
 })();

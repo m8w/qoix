@@ -177,13 +177,16 @@ const FMEngine = (() => {
 
   function getState() { return state; }
   function loadState(s) { state = JSON.parse(JSON.stringify(s)); }
+
+  // Back to factory defaults (used when a patch carries no FM settings)
+  function reset() { loadState(defaultState); }
   function getAlgorithmLabels() { return ALGORITHM_LABELS; }
   function getAlgorithms() { return ALGORITHMS; }
 
   return {
     setContext, noteOn, noteOff, panic,
     setEnabled, setAlgorithm, setOperator,
-    getState, loadState,
+    getState, loadState, reset,
     getAlgorithmLabels, getAlgorithms,
     get fmVoices() { return fmVoices; },
   };

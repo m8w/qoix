@@ -642,7 +642,7 @@
       <section class="panel render-drop-panel">
         <h2>MIDI File</h2>
         <div id="render-dropzone" class="render-dropzone">
-          <div class="rdz-icon"></div><!-- #tab-rand -->#127926;</div>
+          <div class="rdz-icon">&#127926;</div>
           <div class="rdz-main">Drop a .mid file here</div>
           <div class="rdz-sub">or click to browse</div>
           <input type="file" id="render-file-input" accept=".mid,.midi" style="display:none" />
@@ -685,13 +685,13 @@
       <!-- Render action -->
       <section class="panel render-action-panel">
         <h2>Render</h2>
-        <button id="render-start-btn" class="render-btn" disabled></div><!-- #tab-rand -->#9654;</div><!-- #tab-rand -->nbsp; Render to WAV</button>
+        <button id="render-start-btn" class="render-btn" disabled>&#9654;&nbsp; Render to WAV</button>
         <div id="render-progress-wrap" class="render-progress-wrap" style="display:none">
           <div class="render-progress-bar"><div id="render-progress-fill" class="render-progress-fill"></div></div>
           <div id="render-status-msg" class="render-status-msg">Preparing…</div>
         </div>
         <div id="render-download-wrap" class="render-download-wrap" style="display:none">
-          <a id="render-download-link" class="render-download-btn" download="qoix-render.wav"></div><!-- #tab-rand -->#8659;</div><!-- #tab-rand -->nbsp; Download WAV</a>
+          <a id="render-download-link" class="render-download-btn" download="qoix-render.wav">&#8659;&nbsp; Download WAV</a>
           <div id="render-file-info" class="render-file-info"></div>
         </div>
         <div class="section-sub" style="margin-top:14px">Why offline?</div>
@@ -1158,6 +1158,7 @@ const Synth = (() => {
   let ctx = null;
   let masterGain = null;
   let masterPanner = null;
+  let modAmpGain = null;   // mod matrix Amplitude destination (tremolo VCA)
   let analyser = null;
 
   // ── Effect nodes (persistent) ─────────────────────────────
@@ -1242,6 +1243,11 @@ const Synth = (() => {
     // auto-pan and the mod matrix Pan destination move the whole mix.
     masterPanner = ctx.createStereoPanner();
     masterPanner.pan.value = clamp(state.masterPan, -1, 1);
+
+    // Mod matrix Amplitude VCA — unity until something is routed to it, and
+    // placed before the analyser so the visualiser shows the tremolo.
+    modAmpGain = ctx.createGain();
+    modAmpGain.gain.value = 1;
 
     // Build FX chain: source → dist → chorus → delay → reverb → analyser → master → out
     buildEffectChain();
@@ -1403,7 +1409,8 @@ const Synth = (() => {
     reverbDry.connect(postReverb);
     reverbWet.connect(postReverb);
 
-    postReverb.connect(analyser);
+    postReverb.connect(modAmpGain);
+    modAmpGain.connect(analyser);
     analyser.connect(masterPanner);
     masterPanner.connect(masterGain);
 
@@ -1554,6 +1561,8 @@ const Synth = (() => {
     if (s.osc3.enabled) rawSums.osc3 = buildUnisonOsc(s.osc3, oscGroups.osc3);
 
     // ── OSC-to-OSC FM routing ─────────────────────────────────
+    // Kept per voice so the mod matrix FM Index destination can move them
+    const fmGains = [];
     ['osc1', 'osc2', 'osc3'].forEach(tgtKey => {
       const tgtState = s[tgtKey];
       const srcKey   = tgtState.fmFrom;
@@ -1563,6 +1572,7 @@ const Synth = (() => {
       fmGain.gain.value = (tgtState.fmIndex || 0) * baseFreq;
       rawSums[srcKey].connect(fmGain);
       oscGroups[tgtKey].forEach(o => fmGain.connect(o.frequency));
+      fmGains.push({ node: fmGain, baseFreq, oscKey: tgtKey });
     });
 
     // ── Mix mode: route rawSum → [processing] → per-osc filter ──
@@ -1682,7 +1692,7 @@ const Synth = (() => {
     oscGroups.osc3.forEach(o => conn(modBusOsc3Det, o.detune));
     conn(modBusFilterCut, filter.frequency);
 
-    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, oscPanners, modBusConns, startTime: now });
+    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, oscPanners, fmGains, modBusConns, startTime: now });
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
@@ -1952,6 +1962,7 @@ const Synth = (() => {
   }
 
   // ── Mod matrix application (called each animation frame) ──
+  let _fmIndexWasModulated = false;
   function applyModMatrix(dt) {
     if (!ctx || !modBusPitch) return;
 
@@ -1991,6 +2002,37 @@ const Synth = (() => {
       activeVoices.forEach(voice => {
         voice.filter.Q.value = clamp(state.filter.resonance + mv.filter_res * getRange('filter_res'), 0.1, 30);
       });
+    }
+
+    // Amplitude — a VCA that scales the mix rather than offsetting it, so a
+    // routing can only duck below unity (never boost into clipping). At full
+    // source it sits at unity, at zero source it is down by the routed depth:
+    //   velocity → amp at 0.8  ⇒  0.2 … 1.0 across the velocity range
+    //   LFO      → amp at 0.5  ⇒  tremolo between 0.5 and 1.0
+    const ampDepth = ModMatrix.modDepths.amp || 0;
+    if (modAmpGain) {
+      const target = ampDepth > 0 ? clamp(1 - ampDepth + mv.amp * getRange('amp'), 0, 1) : 1;
+      // Smoothed — this runs at frame rate and a stepped gain would zipper
+      modAmpGain.gain.setTargetAtTime(target, now, 0.008);
+    }
+
+    // FM Index — offsets each voice's osc-to-osc FM depth
+    if (mv.fm_index !== 0 || _fmIndexWasModulated) {
+      const offset = mv.fm_index * getRange('fm_index');
+      activeVoices.forEach(voice => {
+        if (!voice.fmGains) return;
+        voice.fmGains.forEach(({ node, baseFreq, oscKey }) => {
+          const base = state[oscKey] ? (state[oscKey].fmIndex || 0) : 0;
+          node.gain.setTargetAtTime(clamp(base + offset, 0, 8) * baseFreq, now, 0.008);
+        });
+      });
+      _fmIndexWasModulated = mv.fm_index !== 0;
+    }
+
+    // WT Position — the wavetable engine caches waveforms per step, so this is
+    // cheap to call every frame
+    if (typeof WTEngine !== 'undefined' && WTEngine.setModPosition) {
+      WTEngine.setModPosition(mv.wt_pos * getRange('wt_pos'));
     }
 
     // LFO1 rate
@@ -2269,13 +2311,16 @@ const FMEngine = (() => {
 
   function getState() { return state; }
   function loadState(s) { state = JSON.parse(JSON.stringify(s)); }
+
+  // Back to factory defaults (used when a patch carries no FM settings)
+  function reset() { loadState(defaultState); }
   function getAlgorithmLabels() { return ALGORITHM_LABELS; }
   function getAlgorithms() { return ALGORITHMS; }
 
   return {
     setContext, noteOn, noteOff, panic,
     setEnabled, setAlgorithm, setOperator,
-    getState, loadState,
+    getState, loadState, reset,
     getAlgorithmLabels, getAlgorithms,
     get fmVoices() { return fmVoices; },
   };
@@ -2361,10 +2406,15 @@ const WTEngine = (() => {
     detune: 0,
   };
 
+  const DEFAULT_STATE = JSON.parse(JSON.stringify(state));
+
   // ── Context ───────────────────────────────────────────────
   let _ctx = null;
   let _destination = null;
   const activeVoices = new Map();
+
+  // Mod matrix offset on the table position, applied on top of state.position
+  let _modPosition = 0;
 
   // Cached PeriodicWave objects per context
   const _waveCache = new Map();
@@ -2394,9 +2444,20 @@ const WTEngine = (() => {
     return _ctx.createPeriodicWave(real, imag, { disableNormalization: false });
   }
 
+  // Table position including any mod matrix modulation
+  function effectivePosition() {
+    return Math.max(0, Math.min(1, state.position + _modPosition));
+  }
+
   // ── Morphed wave (linear interpolation between A and B) ──
+  // Quantised to 1/128 and cached: the mod matrix can sweep the position every
+  // frame without rebuilding a PeriodicWave each time.
   function getMorphedWave(pos) {
     pos = Math.max(0, Math.min(1, pos));
+    const step = Math.round(pos * 128);
+    const key  = `${state.tableA}|${state.tableB}|${step}`;
+    if (_waveCache.has(key)) return _waveCache.get(key);
+    pos = step / 128;
     const tA = WAVETABLE_BANK[state.tableA];
     const tB = WAVETABLE_BANK[state.tableB];
     if (!tA || !tB) return null;
@@ -2408,7 +2469,9 @@ const WTEngine = (() => {
       const b = i < tB.imag.length ? tB.imag[i] : 0;
       imag[i] = a * (1 - pos) + b * pos;
     }
-    return _ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+    const wave = _ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+    _waveCache.set(key, wave);
+    return wave;
   }
 
   // ── Note on ───────────────────────────────────────────────
@@ -2428,7 +2491,7 @@ const WTEngine = (() => {
     if (state.mode === 'oxford') {
       osc.setPeriodicWave(getOxfordWave());
     } else {
-      const wave = getMorphedWave(state.position);
+      const wave = getMorphedWave(effectivePosition());
       if (wave) osc.setPeriodicWave(wave);
     }
 
@@ -2468,7 +2531,7 @@ const WTEngine = (() => {
       if (state.mode === 'oxford') {
         osc.setPeriodicWave(getOxfordWave());
       } else {
-        const wave = getMorphedWave(state.position);
+        const wave = getMorphedWave(effectivePosition());
         if (wave) osc.setPeriodicWave(wave);
       }
     });
@@ -2480,6 +2543,17 @@ const WTEngine = (() => {
   function setTableA(n) { state.tableA = n; updateWaveform(); }
   function setTableB(n) { state.tableB = n; updateWaveform(); }
   function setPosition(v) { state.position = parseFloat(v); updateWaveform(); }
+
+  // Mod matrix → WT Position. Called every frame, so only push a new waveform
+  // when the quantised position actually moves.
+  let _lastAppliedStep = null;
+  function setModPosition(v) {
+    _modPosition = parseFloat(v) || 0;
+    const step = Math.round(effectivePosition() * 128);
+    if (step === _lastAppliedStep) return;
+    _lastAppliedStep = step;
+    if (state.mode === 'wavetable' && activeVoices.size) updateWaveform();
+  }
   function setHarmonic(idx, v) {
     state.harmonics[idx] = parseFloat(v);
     updateWaveform();
@@ -2499,15 +2573,23 @@ const WTEngine = (() => {
 
   function loadState(s) {
     Object.assign(state, s);
+    if (Array.isArray(s.harmonics)) state.harmonics = Array.from(s.harmonics);
     _waveCache.clear();
+    _lastAppliedStep = null;
     updateWaveform();
+  }
+
+  // Back to factory defaults (used when a patch carries no wavetable settings)
+  function reset() {
+    loadState(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+    _modPosition = 0;
   }
 
   return {
     setContext, noteOn, noteOff, panic,
     setEnabled, setMode, setTableA, setTableB,
-    setPosition, setHarmonic, setLevel, setOctave, setDetune,
-    getState, getTableNames, loadState,
+    setPosition, setModPosition, setHarmonic, setLevel, setOctave, setDetune,
+    getState, getTableNames, loadState, reset,
     get activeVoices() { return activeVoices; },
   };
 
@@ -2569,7 +2651,9 @@ const ModMatrix = (() => {
   const DEFAULT_CELLS = {
     lfo1:     { pitch:      { amount: 0.1, enabled: false } },
     lfo2:     { filter_cut: { amount: 0.4, enabled: false } },
-    velocity: { amp:        { amount: 0.8, enabled: true  } },
+    // Off by default: velocity already drives the amp envelope, so enabling
+    // this stacks a second velocity curve on top for a steeper response
+    velocity: { amp:        { amount: 0.8, enabled: false } },
     modwheel: { lfo1_rate:  { amount: 0.5, enabled: false } },
   };
 
@@ -2587,7 +2671,7 @@ const ModMatrix = (() => {
     });
     Object.assign(lfo2State, DEFAULT_LFO2);
     _lfo2Phase = 0;
-    DESTINATIONS.forEach(d => { modValues[d.id] = 0; });
+    DESTINATIONS.forEach(d => { modValues[d.id] = 0; modDepths[d.id] = 0; });
   }
 
   // ── Source signal values (updated each frame) ─────────────
@@ -2597,6 +2681,12 @@ const ModMatrix = (() => {
   // Modulation results (destination → total mod value)
   const modValues = {};
   DESTINATIONS.forEach(d => { modValues[d.id] = 0; });
+
+  // Total routed depth per destination (Σ|amount| over enabled cells).
+  // Destinations that scale a value rather than offset it — Amplitude — use
+  // this to know how far below unity the modulation can pull.
+  const modDepths = {};
+  DESTINATIONS.forEach(d => { modDepths[d.id] = 0; });
 
   // ── LFO2 (independent from synth LFO for mod matrix use) ──
   const lfo2State = { ...DEFAULT_LFO2 };
@@ -2620,15 +2710,16 @@ const ModMatrix = (() => {
     _noteValue = noteVal;
     _velocity  = velVal;
 
-    // LFO2
-    _lfo2Phase += lfo2State.rate * dt * Math.PI * 2;
+    // LFO2 — its own rate is a destination, so fold in last frame's value
+    const lfo2Rate = clamp(lfo2State.rate + modValues.lfo2_rate * rangeOf('lfo2_rate'), 0.01, 30);
+    _lfo2Phase += lfo2Rate * dt * Math.PI * 2;
     const lfo2Val = Math.sin(_lfo2Phase) * lfo2State.depth;
 
     // Random (sample-and-hold)
     _randomTimer -= dt;
     if (_randomTimer <= 0) {
       _randomValue = Math.random() * 2 - 1;
-      _randomTimer = 1 / Math.max(0.1, lfo2State.rate); // sync to lfo2 rate
+      _randomTimer = 1 / Math.max(0.1, lfo2Rate); // sync to lfo2 rate
     }
 
     sourceValues.lfo1     = lfo1Val;
@@ -2642,21 +2733,32 @@ const ModMatrix = (() => {
 
     // Compute destination sums
     DESTINATIONS.forEach(dst => {
-      let sum = 0;
+      let sum = 0, depth = 0;
       SOURCES.forEach(src => {
         const cell = matrix[src.id][dst.id];
         if (cell.enabled && cell.amount !== 0) {
-          sum += sourceValues[src.id] * cell.amount;
+          sum   += sourceValues[src.id] * cell.amount;
+          depth += Math.abs(cell.amount);
         }
       });
       modValues[dst.id] = sum;
+      modDepths[dst.id] = depth;
     });
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function rangeOf(id) {
+    const d = DESTINATIONS.find(x => x.id === id);
+    return d ? d.defaultRange : 1;
   }
 
   function setModWheel(v) { _modWheelValue = v; }
 
   // ── Getters ───────────────────────────────────────────────
   function getModValue(destId) { return modValues[destId] || 0; }
+  function getModDepth(destId) { return modDepths[destId] || 0; }
+  function getRange(destId) { return rangeOf(destId); }
   function getCell(srcId, dstId) { return matrix[srcId][dstId]; }
 
   function setCell(srcId, dstId, amount, enabled) {
@@ -2702,12 +2804,13 @@ const ModMatrix = (() => {
 
   return {
     SOURCES, DESTINATIONS,
-    tick, getModValue, getCell,
+    tick, getModValue, getModDepth, getRange, getCell,
     setCell, setCellAmount, setCellEnabled, reset,
     setModWheel, setLFO2,
     getState, loadState,
     get sourceValues() { return sourceValues; },
     get modValues() { return modValues; },
+    get modDepths() { return modDepths; },
   };
 
 })();
@@ -3572,6 +3675,8 @@ const SpectralFFT = (() => {
     densitySource: 'osc1',   // which subtractive osc to use as source B
   };
 
+  const DEFAULT_STATE = JSON.parse(JSON.stringify(state));
+
   // ── Init (called once, shares context from Synth) ─────────
   function init() {
     if (ctx) return;
@@ -3797,10 +3902,29 @@ const SpectralFFT = (() => {
   function getState()       { return state; }
   function getActiveVoices(){ return activeVoices; }
 
+  // Patches carry the spectral engine, so it needs to be restorable as a whole.
+  // Merged key by key (rather than replaced) so the module's own `state`
+  // reference — captured by every closure above — stays valid.
+  function loadState(s) {
+    if (!s) return;
+    Object.keys(state).forEach(k => {
+      if (s[k] === undefined) return;
+      if (Array.isArray(state[k]))            state[k] = JSON.parse(JSON.stringify(s[k]));
+      else if (state[k] && typeof state[k] === 'object') Object.assign(state[k], s[k]);
+      else                                    state[k] = s[k];
+    });
+  }
+
+  // Back to factory defaults (used when a patch carries no spectral settings)
+  function reset() {
+    panic();
+    loadState(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+  }
+
   return {
     init, noteOn, noteOff, panic,
     setAlpha, setChirpShape, setOp, setEigen, setEnabled, setEnv,
-    getState, getActiveVoices,
+    getState, getActiveVoices, loadState, reset,
   };
 
 })();
@@ -5393,6 +5517,9 @@ const UI = (() => {
   function snapshotPatch() {
     const snap = JSON.parse(JSON.stringify(Synth.getState()));
     snap.modMatrix = ModMatrix.getState();
+    snap.fm       = JSON.parse(JSON.stringify(FMEngine.getState()));
+    snap.wt       = JSON.parse(JSON.stringify(WTEngine.getState()));
+    snap.spectral = JSON.parse(JSON.stringify(SpectralFFT.getState()));
     return snap;
   }
 
@@ -5400,20 +5527,28 @@ const UI = (() => {
   // is heard as it was designed rather than through the previous patch's
   // modulation routings and extra synthesis layers.
   function applyPatch(p) {
-    // The matrix travels with the patch but is not part of the synth state,
-    // so keep it out of the deep merge
-    const { modMatrix, ...synthPatch } = p;
+    // The matrix and the extra engines travel with the patch but are not part
+    // of the synth state, so keep them out of the deep merge
+    const { modMatrix, fm, wt, spectral, ...synthPatch } = p;
     Synth.loadPreset(synthPatch);
 
     ModMatrix.reset();
     if (modMatrix) ModMatrix.loadState(modMatrix);
     buildModMatrix();
 
-    // Extra engines stack on top of the subtractive patch — clear them unless
-    // this patch explicitly asks for them.
-    setLayerEnabled('fm-enabled',       !!p.fm,       v => FMEngine.setEnabled(v));
-    setLayerEnabled('wt-enabled',       !!p.wt,       v => WTEngine.setEnabled(v));
-    setLayerEnabled('spectral-enabled', !!p.spectral, v => SpectralFFT.setEnabled(v));
+    // Extra engines stack on top of the subtractive patch. A patch that
+    // carries them restores them exactly; one that does not gets the factory
+    // defaults, so nothing from the previous patch leaks through.
+    if (fm) FMEngine.loadState(fm); else FMEngine.reset();
+    if (wt) WTEngine.loadState(wt); else WTEngine.reset();
+    if (spectral) SpectralFFT.loadState(spectral); else SpectralFFT.reset();
+
+    setLayerEnabled('fm-enabled',       FMEngine.getState().enabled,    v => FMEngine.setEnabled(v));
+    setLayerEnabled('wt-enabled',       WTEngine.getState().enabled,    v => WTEngine.setEnabled(v));
+    setLayerEnabled('spectral-enabled', SpectralFFT.getState().enabled, v => {
+      if (v) { Synth.ensureContext(); SpectralFFT.init(); }
+      SpectralFFT.setEnabled(v);
+    });
 
     syncUIToState();
   }
@@ -5421,7 +5556,99 @@ const UI = (() => {
   function setLayerEnabled(checkboxId, enabled, fn) {
     const el = $(checkboxId);
     if (el) el.checked = enabled;
+    // An engine that is switched on needs the live context and voice bus
+    if (enabled && Synth._getContext()) {
+      if (checkboxId === 'fm-enabled') FMEngine.setContext(Synth._getContext(), Synth._voiceDestination);
+      if (checkboxId === 'wt-enabled') WTEngine.setContext(Synth._getContext(), Synth._voiceDestination);
+    }
     fn(enabled);
+  }
+
+  // ── Sync the FM tab from FMEngine state ───────────────────
+  function syncFMUI() {
+    const fs = FMEngine.getState();
+    const algo = $('fm-algorithm');
+    if (algo) { algo.value = fs.algorithm; drawFMAlgorithm(parseInt(fs.algorithm)); }
+
+    fs.operators.forEach((op, i) => {
+      const put = (cls, value, text) => {
+        document.querySelectorAll(`.fm-${cls}[data-op="${i}"]`).forEach(el => { el.value = value; });
+        document.querySelectorAll(`.fm-${cls}-v[data-op="${i}"]`).forEach(el => { el.textContent = text; });
+      };
+      const ms = v => v < 1 ? `${Math.round(v * 1000)}ms` : `${v.toFixed(2)}s`;
+      put('ratio',   op.ratio,   op.ratio.toFixed(2));
+      put('level',   op.level,   `${Math.round(op.level * 100)}%`);
+      put('attack',  op.attack,  ms(op.attack));
+      put('decay',   op.decay,   ms(op.decay));
+      put('sustain', op.sustain, `${Math.round(op.sustain * 100)}%`);
+      put('release', op.release, ms(op.release));
+    });
+  }
+
+  // ── Sync the Wavetable / Oxford tab from WTEngine state ───
+  function syncWTUI() {
+    const ws = WTEngine.getState();
+
+    const sr = (id, v) => {
+      const el = $(id); if (!el) return;
+      el.value = v;
+      const vEl = $(id + '-v'); if (vEl) vEl.textContent = fmt(id, v);
+    };
+    sr('wt-level', ws.level); sr('wt-octave', ws.octave);
+    sr('wt-detune', ws.detune); sr('wt-position', ws.position);
+
+    const a = $('wt-tableA'); if (a) a.value = ws.tableA;
+    const b = $('wt-tableB'); if (b) b.value = ws.tableB;
+    document.querySelectorAll('#wt-table-grid .wt-table-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent === ws.tableA);
+    });
+
+    document.querySelectorAll('[data-wtmode]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.wtmode === ws.mode);
+    });
+    if ($('wt-table-panel'))  $('wt-table-panel').style.display  = ws.mode === 'wavetable' ? '' : 'none';
+    if ($('wt-oxford-panel')) $('wt-oxford-panel').style.display = ws.mode === 'oxford'    ? '' : 'none';
+
+    document.querySelectorAll('#harmonic-grid .harmonic-col').forEach((col, i) => {
+      const v = i < ws.harmonics.length ? ws.harmonics[i] : 0;
+      const sl = col.querySelector('.harm-slider');
+      const bar = col.querySelector('.harm-bar');
+      const vEl = col.querySelector('.val');
+      if (sl)  sl.value = v;
+      if (bar) bar.style.height = `${v * 100}%`;
+      if (vEl) vEl.textContent = `${Math.round(v * 100)}%`;
+    });
+
+    drawWavePreview();
+    drawOxfordSpectrum();
+  }
+
+  // ── Sync the Spectral tab from SpectralFFT state ──────────
+  function syncSpectralUI() {
+    const ss = SpectralFFT.getState();
+    const sr = (id, v) => {
+      const el = $(id); if (!el) return;
+      el.value = v;
+      const vEl = $(id + '-v'); if (vEl) vEl.textContent = fmtSpectral(id, v);
+    };
+
+    sr('spectral-alpha', ss.alpha);
+    document.querySelectorAll('#spectral-chirp-btns .wb').forEach(b => {
+      b.classList.toggle('active', b.dataset.chirp === ss.chirpShape);
+    });
+
+    ss.ops.forEach((op, i) => {
+      const en = $(`spectral-op${i}-en`); if (en) en.checked = op.enabled;
+      sr(`spectral-op${i}-ratio`, op.ratio);
+      sr(`spectral-op${i}-chirp`, op.chirpRatio);
+      sr(`spectral-op${i}-level`, op.level);
+    });
+
+    sr('eigen-p1',  ss.eigen.p1);  sr('eigen-pm1', ss.eigen.pm1);
+    sr('eigen-pi',  ss.eigen.pi);  sr('eigen-pmi', ss.eigen.pmi);
+
+    sr('spectral-env-a', ss.env.attack);  sr('spectral-env-d', ss.env.decay);
+    sr('spectral-env-s', ss.env.sustain); sr('spectral-env-r', ss.env.release);
   }
 
   // ── Sync UI from engine state ─────────────────────────────
@@ -5521,6 +5748,14 @@ const UI = (() => {
     document.querySelectorAll('[data-osc="lfo2"] .wb').forEach(b => {
       b.classList.toggle('active', b.dataset.wave === l2.wave);
     });
+
+    // The extra engines keep their own state and their own tabs
+    sc('fm-enabled', FMEngine.getState().enabled);
+    sc('wt-enabled', WTEngine.getState().enabled);
+    sc('spectral-enabled', SpectralFFT.getState().enabled);
+    syncFMUI();
+    syncWTUI();
+    syncSpectralUI();
   }
 
   // ── Envelope canvas draw ──────────────────────────────────
@@ -6255,7 +6490,7 @@ const UI = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { updateActiveNotes: updateActiveNotesDisplay };
+  return { updateActiveNotes: updateActiveNotesDisplay, applyPatch };
 
 })();
 

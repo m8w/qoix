@@ -58,6 +58,8 @@ const SpectralFFT = (() => {
     densitySource: 'osc1',   // which subtractive osc to use as source B
   };
 
+  const DEFAULT_STATE = JSON.parse(JSON.stringify(state));
+
   // ── Init (called once, shares context from Synth) ─────────
   function init() {
     if (ctx) return;
@@ -283,10 +285,29 @@ const SpectralFFT = (() => {
   function getState()       { return state; }
   function getActiveVoices(){ return activeVoices; }
 
+  // Patches carry the spectral engine, so it needs to be restorable as a whole.
+  // Merged key by key (rather than replaced) so the module's own `state`
+  // reference — captured by every closure above — stays valid.
+  function loadState(s) {
+    if (!s) return;
+    Object.keys(state).forEach(k => {
+      if (s[k] === undefined) return;
+      if (Array.isArray(state[k]))            state[k] = JSON.parse(JSON.stringify(s[k]));
+      else if (state[k] && typeof state[k] === 'object') Object.assign(state[k], s[k]);
+      else                                    state[k] = s[k];
+    });
+  }
+
+  // Back to factory defaults (used when a patch carries no spectral settings)
+  function reset() {
+    panic();
+    loadState(JSON.parse(JSON.stringify(DEFAULT_STATE)));
+  }
+
   return {
     init, noteOn, noteOff, panic,
     setAlpha, setChirpShape, setOp, setEigen, setEnabled, setEnv,
-    getState, getActiveVoices,
+    getState, getActiveVoices, loadState, reset,
   };
 
 })();

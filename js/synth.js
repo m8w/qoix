@@ -10,6 +10,7 @@ const Synth = (() => {
   let ctx = null;
   let masterGain = null;
   let masterPanner = null;
+  let modAmpGain = null;   // mod matrix Amplitude destination (tremolo VCA)
   let analyser = null;
 
   // ── Effect nodes (persistent) ─────────────────────────────
@@ -94,6 +95,11 @@ const Synth = (() => {
     // auto-pan and the mod matrix Pan destination move the whole mix.
     masterPanner = ctx.createStereoPanner();
     masterPanner.pan.value = clamp(state.masterPan, -1, 1);
+
+    // Mod matrix Amplitude VCA — unity until something is routed to it, and
+    // placed before the analyser so the visualiser shows the tremolo.
+    modAmpGain = ctx.createGain();
+    modAmpGain.gain.value = 1;
 
     // Build FX chain: source → dist → chorus → delay → reverb → analyser → master → out
     buildEffectChain();
@@ -255,7 +261,8 @@ const Synth = (() => {
     reverbDry.connect(postReverb);
     reverbWet.connect(postReverb);
 
-    postReverb.connect(analyser);
+    postReverb.connect(modAmpGain);
+    modAmpGain.connect(analyser);
     analyser.connect(masterPanner);
     masterPanner.connect(masterGain);
 
@@ -406,6 +413,8 @@ const Synth = (() => {
     if (s.osc3.enabled) rawSums.osc3 = buildUnisonOsc(s.osc3, oscGroups.osc3);
 
     // ── OSC-to-OSC FM routing ─────────────────────────────────
+    // Kept per voice so the mod matrix FM Index destination can move them
+    const fmGains = [];
     ['osc1', 'osc2', 'osc3'].forEach(tgtKey => {
       const tgtState = s[tgtKey];
       const srcKey   = tgtState.fmFrom;
@@ -415,6 +424,7 @@ const Synth = (() => {
       fmGain.gain.value = (tgtState.fmIndex || 0) * baseFreq;
       rawSums[srcKey].connect(fmGain);
       oscGroups[tgtKey].forEach(o => fmGain.connect(o.frequency));
+      fmGains.push({ node: fmGain, baseFreq, oscKey: tgtKey });
     });
 
     // ── Mix mode: route rawSum → [processing] → per-osc filter ──
@@ -534,7 +544,7 @@ const Synth = (() => {
     oscGroups.osc3.forEach(o => conn(modBusOsc3Det, o.detune));
     conn(modBusFilterCut, filter.frequency);
 
-    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, oscPanners, modBusConns, startTime: now });
+    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, oscPanners, fmGains, modBusConns, startTime: now });
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
@@ -804,6 +814,7 @@ const Synth = (() => {
   }
 
   // ── Mod matrix application (called each animation frame) ──
+  let _fmIndexWasModulated = false;
   function applyModMatrix(dt) {
     if (!ctx || !modBusPitch) return;
 
@@ -843,6 +854,37 @@ const Synth = (() => {
       activeVoices.forEach(voice => {
         voice.filter.Q.value = clamp(state.filter.resonance + mv.filter_res * getRange('filter_res'), 0.1, 30);
       });
+    }
+
+    // Amplitude — a VCA that scales the mix rather than offsetting it, so a
+    // routing can only duck below unity (never boost into clipping). At full
+    // source it sits at unity, at zero source it is down by the routed depth:
+    //   velocity → amp at 0.8  ⇒  0.2 … 1.0 across the velocity range
+    //   LFO      → amp at 0.5  ⇒  tremolo between 0.5 and 1.0
+    const ampDepth = ModMatrix.modDepths.amp || 0;
+    if (modAmpGain) {
+      const target = ampDepth > 0 ? clamp(1 - ampDepth + mv.amp * getRange('amp'), 0, 1) : 1;
+      // Smoothed — this runs at frame rate and a stepped gain would zipper
+      modAmpGain.gain.setTargetAtTime(target, now, 0.008);
+    }
+
+    // FM Index — offsets each voice's osc-to-osc FM depth
+    if (mv.fm_index !== 0 || _fmIndexWasModulated) {
+      const offset = mv.fm_index * getRange('fm_index');
+      activeVoices.forEach(voice => {
+        if (!voice.fmGains) return;
+        voice.fmGains.forEach(({ node, baseFreq, oscKey }) => {
+          const base = state[oscKey] ? (state[oscKey].fmIndex || 0) : 0;
+          node.gain.setTargetAtTime(clamp(base + offset, 0, 8) * baseFreq, now, 0.008);
+        });
+      });
+      _fmIndexWasModulated = mv.fm_index !== 0;
+    }
+
+    // WT Position — the wavetable engine caches waveforms per step, so this is
+    // cheap to call every frame
+    if (typeof WTEngine !== 'undefined' && WTEngine.setModPosition) {
+      WTEngine.setModPosition(mv.wt_pos * getRange('wt_pos'));
     }
 
     // LFO1 rate

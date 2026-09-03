@@ -52,7 +52,9 @@ const ModMatrix = (() => {
   const DEFAULT_CELLS = {
     lfo1:     { pitch:      { amount: 0.1, enabled: false } },
     lfo2:     { filter_cut: { amount: 0.4, enabled: false } },
-    velocity: { amp:        { amount: 0.8, enabled: true  } },
+    // Off by default: velocity already drives the amp envelope, so enabling
+    // this stacks a second velocity curve on top for a steeper response
+    velocity: { amp:        { amount: 0.8, enabled: false } },
     modwheel: { lfo1_rate:  { amount: 0.5, enabled: false } },
   };
 
@@ -70,7 +72,7 @@ const ModMatrix = (() => {
     });
     Object.assign(lfo2State, DEFAULT_LFO2);
     _lfo2Phase = 0;
-    DESTINATIONS.forEach(d => { modValues[d.id] = 0; });
+    DESTINATIONS.forEach(d => { modValues[d.id] = 0; modDepths[d.id] = 0; });
   }
 
   // ── Source signal values (updated each frame) ─────────────
@@ -80,6 +82,12 @@ const ModMatrix = (() => {
   // Modulation results (destination → total mod value)
   const modValues = {};
   DESTINATIONS.forEach(d => { modValues[d.id] = 0; });
+
+  // Total routed depth per destination (Σ|amount| over enabled cells).
+  // Destinations that scale a value rather than offset it — Amplitude — use
+  // this to know how far below unity the modulation can pull.
+  const modDepths = {};
+  DESTINATIONS.forEach(d => { modDepths[d.id] = 0; });
 
   // ── LFO2 (independent from synth LFO for mod matrix use) ──
   const lfo2State = { ...DEFAULT_LFO2 };
@@ -103,15 +111,16 @@ const ModMatrix = (() => {
     _noteValue = noteVal;
     _velocity  = velVal;
 
-    // LFO2
-    _lfo2Phase += lfo2State.rate * dt * Math.PI * 2;
+    // LFO2 — its own rate is a destination, so fold in last frame's value
+    const lfo2Rate = clamp(lfo2State.rate + modValues.lfo2_rate * rangeOf('lfo2_rate'), 0.01, 30);
+    _lfo2Phase += lfo2Rate * dt * Math.PI * 2;
     const lfo2Val = Math.sin(_lfo2Phase) * lfo2State.depth;
 
     // Random (sample-and-hold)
     _randomTimer -= dt;
     if (_randomTimer <= 0) {
       _randomValue = Math.random() * 2 - 1;
-      _randomTimer = 1 / Math.max(0.1, lfo2State.rate); // sync to lfo2 rate
+      _randomTimer = 1 / Math.max(0.1, lfo2Rate); // sync to lfo2 rate
     }
 
     sourceValues.lfo1     = lfo1Val;
@@ -125,21 +134,32 @@ const ModMatrix = (() => {
 
     // Compute destination sums
     DESTINATIONS.forEach(dst => {
-      let sum = 0;
+      let sum = 0, depth = 0;
       SOURCES.forEach(src => {
         const cell = matrix[src.id][dst.id];
         if (cell.enabled && cell.amount !== 0) {
-          sum += sourceValues[src.id] * cell.amount;
+          sum   += sourceValues[src.id] * cell.amount;
+          depth += Math.abs(cell.amount);
         }
       });
       modValues[dst.id] = sum;
+      modDepths[dst.id] = depth;
     });
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function rangeOf(id) {
+    const d = DESTINATIONS.find(x => x.id === id);
+    return d ? d.defaultRange : 1;
   }
 
   function setModWheel(v) { _modWheelValue = v; }
 
   // ── Getters ───────────────────────────────────────────────
   function getModValue(destId) { return modValues[destId] || 0; }
+  function getModDepth(destId) { return modDepths[destId] || 0; }
+  function getRange(destId) { return rangeOf(destId); }
   function getCell(srcId, dstId) { return matrix[srcId][dstId]; }
 
   function setCell(srcId, dstId, amount, enabled) {
@@ -185,12 +205,13 @@ const ModMatrix = (() => {
 
   return {
     SOURCES, DESTINATIONS,
-    tick, getModValue, getCell,
+    tick, getModValue, getModDepth, getRange, getCell,
     setCell, setCellAmount, setCellEnabled, reset,
     setModWheel, setLFO2,
     getState, loadState,
     get sourceValues() { return sourceValues; },
     get modValues() { return modValues; },
+    get modDepths() { return modDepths; },
   };
 
 })();
