@@ -9,6 +9,7 @@ const Synth = (() => {
   // ── Context ───────────────────────────────────────────────
   let ctx = null;
   let masterGain = null;
+  let masterPanner = null;
   let analyser = null;
 
   // ── Effect nodes (persistent) ─────────────────────────────
@@ -35,6 +36,7 @@ const Synth = (() => {
   let modBusOsc1Det   = null;   // → osc1 detune (cents)
   let modBusOsc2Det   = null;
   let modBusOsc3Det   = null;
+  let modBusPan       = null;   // → master pan (-1..+1)
 
   // Mod matrix JS state
   let jsLFOPhase    = 0;
@@ -57,13 +59,14 @@ const Synth = (() => {
   // ── State ─────────────────────────────────────────────────
   const state = {
     masterVolume: 0.7,
-    osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, voices: 1, unisonSpread: 20,
+    masterPan: 0,          // -1 = hard left, 0 = centre, +1 = hard right
+    osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, pan: 0, voices: 1, unisonSpread: 20,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5 },
-    osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, voices: 1, unisonSpread: 20,
+    osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, pan: 0, voices: 1, unisonSpread: 20,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5, mixMode: 'add' },
-    osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, voices: 1, unisonSpread: 20,
+    osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, pan: 0, voices: 1, unisonSpread: 20,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5, mixMode: 'add' },
     noise: { enabled: false, type: 'white', level: 0.2 },
@@ -87,6 +90,11 @@ const Synth = (() => {
     analyser.fftSize = quality.fftSize;
     analyser.smoothingTimeConstant = 0.82;
 
+    // Master pan sits between the analyser and the master gain, so the LFO
+    // auto-pan and the mod matrix Pan destination move the whole mix.
+    masterPanner = ctx.createStereoPanner();
+    masterPanner.pan.value = clamp(state.masterPan, -1, 1);
+
     // Build FX chain: source → dist → chorus → delay → reverb → analyser → master → out
     buildEffectChain();
 
@@ -104,6 +112,8 @@ const Synth = (() => {
     modBusOsc1Det   = makeModBus();
     modBusOsc2Det   = makeModBus();
     modBusOsc3Det   = makeModBus();
+    modBusPan       = makeModBus();
+    modBusPan.connect(masterPanner.pan);
 
     console.log(`[QOIX] Audio engine initialized — ${ctx.sampleRate}Hz, ${quality.maxVoices} voices, FFT ${quality.fftSize}`);
   }
@@ -246,7 +256,8 @@ const Synth = (() => {
     reverbWet.connect(postReverb);
 
     postReverb.connect(analyser);
-    analyser.connect(masterGain);
+    analyser.connect(masterPanner);
+    masterPanner.connect(masterGain);
 
     // Save reference so voices can connect to distortion inputs
     Synth._fxInput = { distortionNode, distortionBypass };
@@ -317,9 +328,20 @@ const Synth = (() => {
     const oscs = [];
     // Per-osc filters keyed by osc name
     const oscFilters = {};
+    // Per-osc stereo panners keyed by osc name (filter → panner → mixer)
+    const oscPanners = {};
 
     // Mixer: merges all per-osc filter outputs before the master filter
     const oscMixer = ctx.createGain();
+
+    // Each oscillator gets its own stereo panner so OSC 1/2/3 can be placed
+    // independently across the stereo field.
+    function makeOscPanner(oscState) {
+      const p = ctx.createStereoPanner();
+      p.pan.setValueAtTime(clamp(oscState.pan || 0, -1, 1), now);
+      p.connect(oscMixer);
+      return p;
+    }
 
     function makeOscFilter(fState, targetNode) {
       const f = ctx.createBiquadFilter();
@@ -430,17 +452,23 @@ const Synth = (() => {
     }
 
     if (s.osc1.enabled) {
-      const f1 = makeOscFilter(s.osc1.filter, oscMixer);
+      const p1 = makeOscPanner(s.osc1);
+      const f1 = makeOscFilter(s.osc1.filter, p1);
+      oscPanners.osc1 = p1;
       oscFilters.osc1 = f1;
       rawSums.osc1.connect(f1);
     }
     if (s.osc2.enabled) {
-      const f2 = makeOscFilter(s.osc2.filter, oscMixer);
+      const p2 = makeOscPanner(s.osc2);
+      const f2 = makeOscFilter(s.osc2.filter, p2);
+      oscPanners.osc2 = p2;
       oscFilters.osc2 = f2;
       routeOscToFilter(rawSums.osc2, s.osc2, f2);
     }
     if (s.osc3.enabled) {
-      const f3 = makeOscFilter(s.osc3.filter, oscMixer);
+      const p3 = makeOscPanner(s.osc3);
+      const f3 = makeOscFilter(s.osc3.filter, p3);
+      oscPanners.osc3 = p3;
       oscFilters.osc3 = f3;
       routeOscToFilter(rawSums.osc3, s.osc3, f3);
     }
@@ -506,7 +534,7 @@ const Synth = (() => {
     oscGroups.osc3.forEach(o => conn(modBusOsc3Det, o.detune));
     conn(modBusFilterCut, filter.frequency);
 
-    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, modBusConns, startTime: now });
+    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, oscPanners, modBusConns, startTime: now });
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
@@ -557,11 +585,24 @@ const Synth = (() => {
     // remain tracked so they can be hard-killed if needed.
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
     setTimeout(() => {
-      activeVoices.delete(midiNote);
+      // Only drop the map entry if it is still *this* voice. Replaying the same
+      // note during its release tail installs a new voice under the same key —
+      // deleting it here would leave that new voice untracked and sounding
+      // forever (no noteOff and no panic could ever reach it).
+      if (activeVoices.get(midiNote) === voice) activeVoices.delete(midiNote);
       // Disconnect the remaining chain after release tail to free memory
       try { voice.oscMixer.disconnect(); } catch(e) {}
       try { voice.filter.disconnect();   } catch(e) {}
       try { voice.ampEnv.disconnect();   } catch(e) {}
+      if (voice.oscPanners) {
+        Object.values(voice.oscPanners).forEach(pn => { try { pn.disconnect(); } catch(e) {} });
+      }
+      if (voice.oscFilters) {
+        Object.values(voice.oscFilters).forEach(f => { try { f.disconnect(); } catch(e) {} });
+      }
+      // The note list still showed the note through its release tail and was
+      // never refreshed once the tail ended, leaving phantom "held" notes.
+      UI && UI.updateActiveNotes && UI.updateActiveNotes();
     }, (rel + 0.15) * 1000);
   }
 
@@ -587,6 +628,9 @@ const Synth = (() => {
       if (voice.oscFilters) {
         Object.values(voice.oscFilters).forEach(f => { try { f.disconnect(); } catch(e) {} });
       }
+      if (voice.oscPanners) {
+        Object.values(voice.oscPanners).forEach(pn => { try { pn.disconnect(); } catch(e) {} });
+      }
       try { voice.filter.disconnect(); } catch(e) {}
       try { voice.ampEnv.gain.cancelScheduledValues(now); } catch(e) {}
       try { voice.ampEnv.disconnect(); } catch(e) {}
@@ -609,6 +653,8 @@ const Synth = (() => {
     lfoGain.gain.value = computeLFODepth();
     lfoOsc.connect(lfoGain);
     lfoOsc.start();
+    lfoPanConnected = false;
+    updateLFOPanRouting();
   }
 
   function stopLFO() {
@@ -616,6 +662,23 @@ const Synth = (() => {
     if (lfoGain) lfoGain.disconnect();
     lfoOsc = null;
     lfoGain = null;
+    lfoPanConnected = false;
+  }
+
+  // Auto-pan is a *global* target: it drives the master panner once, rather
+  // than being wired per-voice like pitch/filter/amp (which would stack up
+  // one LFO connection per held note).
+  let lfoPanConnected = false;
+  function updateLFOPanRouting() {
+    if (!masterPanner) return;
+    const want = !!(lfoGain && state.lfo.enabled && state.lfo.target === 'pan');
+    if (want && !lfoPanConnected) {
+      lfoGain.connect(masterPanner.pan);
+      lfoPanConnected = true;
+    } else if (!want && lfoPanConnected) {
+      try { lfoGain.disconnect(masterPanner.pan); } catch(e) {}
+      lfoPanConnected = false;
+    }
   }
 
   function computeLFODepth() {
@@ -637,6 +700,22 @@ const Synth = (() => {
 
   function setOsc(oscKey, param, value) {
     state[oscKey][param] = value;
+    // Pan is audible on held notes, so move the live voices too
+    if (param === 'pan' && ctx) {
+      const now = ctx.currentTime;
+      const v = clamp(value, -1, 1);
+      activeVoices.forEach(voice => {
+        const pn = voice.oscPanners && voice.oscPanners[oscKey];
+        if (pn) pn.pan.setValueAtTime(v, now);
+      });
+    }
+  }
+
+  // Master pan: the base position the LFO auto-pan and the mod matrix Pan
+  // destination modulate around.
+  function setMasterPan(v) {
+    state.masterPan = clamp(parseFloat(v) || 0, -1, 1);
+    if (masterPanner) masterPanner.pan.setValueAtTime(state.masterPan, ctx.currentTime);
   }
 
   function setEnv(param, value) { state.env[param] = value; }
@@ -671,6 +750,7 @@ const Synth = (() => {
       if (value) startLFO();
       else stopLFO();
     }
+    if (param === 'target') updateLFOPanRouting();
   }
 
   function setDistortion(param, value) {
@@ -756,6 +836,7 @@ const Synth = (() => {
     modBusOsc1Det  .offset.setValueAtTime(mv.osc1_det   * getRange('osc1_det'),         now); // cents
     modBusOsc2Det  .offset.setValueAtTime(mv.osc2_det   * getRange('osc2_det'),         now);
     modBusOsc3Det  .offset.setValueAtTime(mv.osc3_det   * getRange('osc3_det'),         now);
+    modBusPan      .offset.setValueAtTime(clamp(mv.pan   * getRange('pan'), -1, 1),      now); // -1..+1
 
     // Filter resonance — direct (no conflict with envelope)
     if (mv.filter_res !== 0) {
@@ -772,6 +853,13 @@ const Synth = (() => {
 
   // ── Load preset ───────────────────────────────────────────
   function loadPreset(preset) {
+    // Pan is not carried by the built-in presets — recentre it so a patch
+    // always loads with the stereo image its designer intended.
+    if (preset.masterPan === undefined) state.masterPan = 0;
+    ['osc1', 'osc2', 'osc3'].forEach(k => {
+      if (!preset[k] || preset[k].pan === undefined) state[k].pan = 0;
+    });
+
     // Deep merge preset into state
     deepMerge(state, preset);
 
@@ -789,6 +877,7 @@ const Synth = (() => {
     } else {
       stopLFO();
     }
+    updateLFOPanRouting();
 
     // Sync FX nodes
     setDistortion('enabled', state.dist.enabled);
@@ -802,6 +891,7 @@ const Synth = (() => {
     setReverb('damp', state.reverb.damp);
     setReverb('mix', state.reverb.mix);
     setMasterVolume(state.masterVolume);
+    setMasterPan(state.masterPan);
   }
 
   // ── Helpers ───────────────────────────────────────────────
@@ -835,7 +925,7 @@ const Synth = (() => {
   return {
     init, ensureContext,
     noteOn, noteOff, panic,
-    setMasterVolume,
+    setMasterVolume, setMasterPan,
     setOsc, setEnv, setFEnv,
     setFilter, setOscFilter, setLFO, applyModMatrix,
     setDistortion, setChorus, setDelay, setReverb,
@@ -845,6 +935,7 @@ const Synth = (() => {
     setQuality, getQuality,
     _voiceDestination: null,
     _chorusWetGain: null,
+    get _masterPanner() { return masterPanner; },
   };
 
 })();

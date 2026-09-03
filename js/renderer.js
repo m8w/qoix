@@ -199,6 +199,11 @@ const Renderer = (() => {
     masterGain.gain.value = s.masterVolume;
     masterGain.connect(offCtx.destination);
 
+    // Master pan (also the LFO auto-pan target)
+    const masterPan = offCtx.createStereoPanner();
+    masterPan.pan.value = clamp(s.masterPan || 0, -1, 1);
+    masterPan.connect(masterGain);
+
     // ── Effect chain ──
     const voiceDest = offCtx.createGain(); // where voices connect
 
@@ -244,7 +249,7 @@ const Renderer = (() => {
     const postRev = offCtx.createGain();
     postDelay.connect(postRev); postDelay.connect(revNode);
     revNode.connect(revWet); revWet.connect(postRev);
-    postRev.connect(masterGain);
+    postRev.connect(masterPan);
 
     // ── LFO ──
     let lfoOsc = null, lfoGain = null;
@@ -254,8 +259,10 @@ const Renderer = (() => {
       lfoOsc.type = s.lfo.wave;
       lfoOsc.frequency.value = s.lfo.rate;
       const d = s.lfo.depth;
-      lfoGain.gain.value = { pitch: d*200, filter: d*5000, amplitude: d*0.5 }[s.lfo.target] ?? d;
+      lfoGain.gain.value = { pitch: d*200, filter: d*5000, amplitude: d*0.5, pan: d }[s.lfo.target] ?? d;
       lfoOsc.connect(lfoGain); lfoOsc.start(0);
+      // Auto-pan is global, so it is wired once here rather than per voice
+      if (s.lfo.target === 'pan') lfoGain.connect(masterPan.pan);
     }
 
     // ── Noise buffer ──
@@ -296,8 +303,11 @@ const Renderer = (() => {
       const oscMixer = offCtx.createGain();
       const allOscs  = [];
 
-      // Per-osc filter
-      function makeOscFilt(fs) {
+      // Per-osc filter → per-osc stereo panner → mixer
+      function makeOscFilt(fs, pan) {
+        const panner = offCtx.createStereoPanner();
+        panner.pan.value = clamp(pan || 0, -1, 1);
+        panner.connect(oscMixer);
         const f = offCtx.createBiquadFilter();
         f.type = fs.type;
         f.frequency.setValueAtTime(fs.cutoff, t);
@@ -311,7 +321,7 @@ const Renderer = (() => {
           const sc = offCtx.createGain(); sc.gain.value = fs.lfoDepth * s.lfo.depth * 5000;
           lfoOsc.connect(sc); sc.connect(f.frequency);
         }
-        f.connect(oscMixer);
+        f.connect(panner);
         return f;
       }
 
@@ -333,9 +343,9 @@ const Renderer = (() => {
         }
       }
 
-      const f1 = makeOscFilt(s.osc1.filter);
-      const f2 = makeOscFilt(s.osc2.filter);
-      const f3 = makeOscFilt(s.osc3.filter);
+      const f1 = makeOscFilt(s.osc1.filter, s.osc1.pan);
+      const f2 = makeOscFilt(s.osc2.filter, s.osc2.pan);
+      const f3 = makeOscFilt(s.osc3.filter, s.osc3.pan);
       buildOscs(s.osc1, f1);
       buildOscs(s.osc2, f2);
       buildOscs(s.osc3, f3);

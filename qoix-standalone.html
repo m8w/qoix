@@ -19,6 +19,7 @@
     <div class="header-center">
       <label class="hdr-label">Patch</label>
       <select id="preset-select"></select>
+      <button id="init-patch-btn" title="Start fresh: Init patch, mod matrix and extra layers reset">Init</button>
       <button id="save-preset-btn">Save</button>
       <button id="delete-preset-btn" title="Delete this patch" style="display:none">&#10005;</button>
       <button id="export-patch-btn" title="Export patch as JSON">&#8659;</button>
@@ -31,6 +32,10 @@
       <label class="hdr-label">Master</label>
       <input type="range" id="master-volume" min="0" max="1" step="0.01" value="0.7" />
       <span class="small-val" id="master-vol-disp">70%</span>
+      <label class="hdr-label">Pan</label>
+      <input type="range" id="master-pan" class="pan-slider hdr-pan" min="-1" max="1" step="0.01" value="0"
+             title="Master stereo position — double-click to centre" />
+      <span class="small-val" id="master-pan-disp">C</span>
       <button id="panic-btn">&#9724; Panic</button>
     </div>
   </header>
@@ -73,6 +78,7 @@
         <div class="ctrl-row"><span class="lbl">Oct</span><input type="range" id="osc1-octave" min="-2" max="2" step="1" value="0" /><span class="val" id="osc1-octave-v">0</span></div>
         <div class="ctrl-row"><span class="lbl">Detune</span><input type="range" id="osc1-detune" min="-50" max="50" step="1" value="0" /><span class="val" id="osc1-detune-v">0¢</span></div>
         <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="osc1-level" min="0" max="1" step="0.01" value="0.8" /><span class="val" id="osc1-level-v">80%</span></div>
+        <div class="ctrl-row"><span class="lbl">Pan</span><input type="range" id="osc1-pan" class="pan-slider" min="-1" max="1" step="0.01" value="0" title="Stereo position — double-click to centre" /><span class="val" id="osc1-pan-v">C</span></div>
         <div class="ctrl-row"><span class="lbl">Voices</span><input type="range" id="osc1-voices" min="1" max="16" step="1" value="1" /><span class="val" id="osc1-voices-v">1</span></div>
         <div class="ctrl-row"><span class="lbl">Spread</span><input type="range" id="osc1-spread" min="0" max="50" step="1" value="20" /><span class="val" id="osc1-spread-v">20¢</span></div>
         <div class="section-sub">Filter</div>
@@ -120,6 +126,7 @@
         <div class="ctrl-row"><span class="lbl">Oct</span><input type="range" id="osc2-octave" min="-2" max="2" step="1" value="0" /><span class="val" id="osc2-octave-v">0</span></div>
         <div class="ctrl-row"><span class="lbl">Detune</span><input type="range" id="osc2-detune" min="-50" max="50" step="1" value="7" /><span class="val" id="osc2-detune-v">7¢</span></div>
         <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="osc2-level" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="osc2-level-v">50%</span></div>
+        <div class="ctrl-row"><span class="lbl">Pan</span><input type="range" id="osc2-pan" class="pan-slider" min="-1" max="1" step="0.01" value="0" title="Stereo position — double-click to centre" /><span class="val" id="osc2-pan-v">C</span></div>
         <div class="ctrl-row"><span class="lbl">Voices</span><input type="range" id="osc2-voices" min="1" max="16" step="1" value="1" /><span class="val" id="osc2-voices-v">1</span></div>
         <div class="ctrl-row"><span class="lbl">Spread</span><input type="range" id="osc2-spread" min="0" max="50" step="1" value="20" /><span class="val" id="osc2-spread-v">20¢</span></div>
         <div class="section-sub">Filter</div>
@@ -177,6 +184,7 @@
         <div class="ctrl-row"><span class="lbl">Oct</span><input type="range" id="osc3-octave" min="-2" max="2" step="1" value="-1" /><span class="val" id="osc3-octave-v">-1</span></div>
         <div class="ctrl-row"><span class="lbl">Detune</span><input type="range" id="osc3-detune" min="-50" max="50" step="1" value="-7" /><span class="val" id="osc3-detune-v">-7¢</span></div>
         <div class="ctrl-row"><span class="lbl">Level</span><input type="range" id="osc3-level" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="osc3-level-v">50%</span></div>
+        <div class="ctrl-row"><span class="lbl">Pan</span><input type="range" id="osc3-pan" class="pan-slider" min="-1" max="1" step="0.01" value="0" title="Stereo position — double-click to centre" /><span class="val" id="osc3-pan-v">C</span></div>
         <div class="ctrl-row"><span class="lbl">Voices</span><input type="range" id="osc3-voices" min="1" max="16" step="1" value="1" /><span class="val" id="osc3-voices-v">1</span></div>
         <div class="ctrl-row"><span class="lbl">Spread</span><input type="range" id="osc3-spread" min="0" max="50" step="1" value="20" /><span class="val" id="osc3-spread-v">20¢</span></div>
         <div class="section-sub">Filter</div>
@@ -1149,6 +1157,7 @@ const Synth = (() => {
   // ── Context ───────────────────────────────────────────────
   let ctx = null;
   let masterGain = null;
+  let masterPanner = null;
   let analyser = null;
 
   // ── Effect nodes (persistent) ─────────────────────────────
@@ -1175,6 +1184,7 @@ const Synth = (() => {
   let modBusOsc1Det   = null;   // → osc1 detune (cents)
   let modBusOsc2Det   = null;
   let modBusOsc3Det   = null;
+  let modBusPan       = null;   // → master pan (-1..+1)
 
   // Mod matrix JS state
   let jsLFOPhase    = 0;
@@ -1197,13 +1207,14 @@ const Synth = (() => {
   // ── State ─────────────────────────────────────────────────
   const state = {
     masterVolume: 0.7,
-    osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, voices: 1, unisonSpread: 20,
+    masterPan: 0,          // -1 = hard left, 0 = centre, +1 = hard right
+    osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, pan: 0, voices: 1, unisonSpread: 20,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5 },
-    osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, voices: 1, unisonSpread: 20,
+    osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, pan: 0, voices: 1, unisonSpread: 20,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5, mixMode: 'add' },
-    osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, voices: 1, unisonSpread: 20,
+    osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, pan: 0, voices: 1, unisonSpread: 20,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5, mixMode: 'add' },
     noise: { enabled: false, type: 'white', level: 0.2 },
@@ -1227,6 +1238,11 @@ const Synth = (() => {
     analyser.fftSize = quality.fftSize;
     analyser.smoothingTimeConstant = 0.82;
 
+    // Master pan sits between the analyser and the master gain, so the LFO
+    // auto-pan and the mod matrix Pan destination move the whole mix.
+    masterPanner = ctx.createStereoPanner();
+    masterPanner.pan.value = clamp(state.masterPan, -1, 1);
+
     // Build FX chain: source → dist → chorus → delay → reverb → analyser → master → out
     buildEffectChain();
 
@@ -1244,6 +1260,8 @@ const Synth = (() => {
     modBusOsc1Det   = makeModBus();
     modBusOsc2Det   = makeModBus();
     modBusOsc3Det   = makeModBus();
+    modBusPan       = makeModBus();
+    modBusPan.connect(masterPanner.pan);
 
     console.log(`[QOIX] Audio engine initialized — ${ctx.sampleRate}Hz, ${quality.maxVoices} voices, FFT ${quality.fftSize}`);
   }
@@ -1386,7 +1404,8 @@ const Synth = (() => {
     reverbWet.connect(postReverb);
 
     postReverb.connect(analyser);
-    analyser.connect(masterGain);
+    analyser.connect(masterPanner);
+    masterPanner.connect(masterGain);
 
     // Save reference so voices can connect to distortion inputs
     Synth._fxInput = { distortionNode, distortionBypass };
@@ -1457,9 +1476,20 @@ const Synth = (() => {
     const oscs = [];
     // Per-osc filters keyed by osc name
     const oscFilters = {};
+    // Per-osc stereo panners keyed by osc name (filter → panner → mixer)
+    const oscPanners = {};
 
     // Mixer: merges all per-osc filter outputs before the master filter
     const oscMixer = ctx.createGain();
+
+    // Each oscillator gets its own stereo panner so OSC 1/2/3 can be placed
+    // independently across the stereo field.
+    function makeOscPanner(oscState) {
+      const p = ctx.createStereoPanner();
+      p.pan.setValueAtTime(clamp(oscState.pan || 0, -1, 1), now);
+      p.connect(oscMixer);
+      return p;
+    }
 
     function makeOscFilter(fState, targetNode) {
       const f = ctx.createBiquadFilter();
@@ -1570,17 +1600,23 @@ const Synth = (() => {
     }
 
     if (s.osc1.enabled) {
-      const f1 = makeOscFilter(s.osc1.filter, oscMixer);
+      const p1 = makeOscPanner(s.osc1);
+      const f1 = makeOscFilter(s.osc1.filter, p1);
+      oscPanners.osc1 = p1;
       oscFilters.osc1 = f1;
       rawSums.osc1.connect(f1);
     }
     if (s.osc2.enabled) {
-      const f2 = makeOscFilter(s.osc2.filter, oscMixer);
+      const p2 = makeOscPanner(s.osc2);
+      const f2 = makeOscFilter(s.osc2.filter, p2);
+      oscPanners.osc2 = p2;
       oscFilters.osc2 = f2;
       routeOscToFilter(rawSums.osc2, s.osc2, f2);
     }
     if (s.osc3.enabled) {
-      const f3 = makeOscFilter(s.osc3.filter, oscMixer);
+      const p3 = makeOscPanner(s.osc3);
+      const f3 = makeOscFilter(s.osc3.filter, p3);
+      oscPanners.osc3 = p3;
       oscFilters.osc3 = f3;
       routeOscToFilter(rawSums.osc3, s.osc3, f3);
     }
@@ -1646,7 +1682,7 @@ const Synth = (() => {
     oscGroups.osc3.forEach(o => conn(modBusOsc3Det, o.detune));
     conn(modBusFilterCut, filter.frequency);
 
-    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, modBusConns, startTime: now });
+    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, oscPanners, modBusConns, startTime: now });
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
@@ -1697,11 +1733,24 @@ const Synth = (() => {
     // remain tracked so they can be hard-killed if needed.
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
     setTimeout(() => {
-      activeVoices.delete(midiNote);
+      // Only drop the map entry if it is still *this* voice. Replaying the same
+      // note during its release tail installs a new voice under the same key —
+      // deleting it here would leave that new voice untracked and sounding
+      // forever (no noteOff and no panic could ever reach it).
+      if (activeVoices.get(midiNote) === voice) activeVoices.delete(midiNote);
       // Disconnect the remaining chain after release tail to free memory
       try { voice.oscMixer.disconnect(); } catch(e) {}
       try { voice.filter.disconnect();   } catch(e) {}
       try { voice.ampEnv.disconnect();   } catch(e) {}
+      if (voice.oscPanners) {
+        Object.values(voice.oscPanners).forEach(pn => { try { pn.disconnect(); } catch(e) {} });
+      }
+      if (voice.oscFilters) {
+        Object.values(voice.oscFilters).forEach(f => { try { f.disconnect(); } catch(e) {} });
+      }
+      // The note list still showed the note through its release tail and was
+      // never refreshed once the tail ended, leaving phantom "held" notes.
+      UI && UI.updateActiveNotes && UI.updateActiveNotes();
     }, (rel + 0.15) * 1000);
   }
 
@@ -1727,6 +1776,9 @@ const Synth = (() => {
       if (voice.oscFilters) {
         Object.values(voice.oscFilters).forEach(f => { try { f.disconnect(); } catch(e) {} });
       }
+      if (voice.oscPanners) {
+        Object.values(voice.oscPanners).forEach(pn => { try { pn.disconnect(); } catch(e) {} });
+      }
       try { voice.filter.disconnect(); } catch(e) {}
       try { voice.ampEnv.gain.cancelScheduledValues(now); } catch(e) {}
       try { voice.ampEnv.disconnect(); } catch(e) {}
@@ -1749,6 +1801,8 @@ const Synth = (() => {
     lfoGain.gain.value = computeLFODepth();
     lfoOsc.connect(lfoGain);
     lfoOsc.start();
+    lfoPanConnected = false;
+    updateLFOPanRouting();
   }
 
   function stopLFO() {
@@ -1756,6 +1810,23 @@ const Synth = (() => {
     if (lfoGain) lfoGain.disconnect();
     lfoOsc = null;
     lfoGain = null;
+    lfoPanConnected = false;
+  }
+
+  // Auto-pan is a *global* target: it drives the master panner once, rather
+  // than being wired per-voice like pitch/filter/amp (which would stack up
+  // one LFO connection per held note).
+  let lfoPanConnected = false;
+  function updateLFOPanRouting() {
+    if (!masterPanner) return;
+    const want = !!(lfoGain && state.lfo.enabled && state.lfo.target === 'pan');
+    if (want && !lfoPanConnected) {
+      lfoGain.connect(masterPanner.pan);
+      lfoPanConnected = true;
+    } else if (!want && lfoPanConnected) {
+      try { lfoGain.disconnect(masterPanner.pan); } catch(e) {}
+      lfoPanConnected = false;
+    }
   }
 
   function computeLFODepth() {
@@ -1777,6 +1848,22 @@ const Synth = (() => {
 
   function setOsc(oscKey, param, value) {
     state[oscKey][param] = value;
+    // Pan is audible on held notes, so move the live voices too
+    if (param === 'pan' && ctx) {
+      const now = ctx.currentTime;
+      const v = clamp(value, -1, 1);
+      activeVoices.forEach(voice => {
+        const pn = voice.oscPanners && voice.oscPanners[oscKey];
+        if (pn) pn.pan.setValueAtTime(v, now);
+      });
+    }
+  }
+
+  // Master pan: the base position the LFO auto-pan and the mod matrix Pan
+  // destination modulate around.
+  function setMasterPan(v) {
+    state.masterPan = clamp(parseFloat(v) || 0, -1, 1);
+    if (masterPanner) masterPanner.pan.setValueAtTime(state.masterPan, ctx.currentTime);
   }
 
   function setEnv(param, value) { state.env[param] = value; }
@@ -1811,6 +1898,7 @@ const Synth = (() => {
       if (value) startLFO();
       else stopLFO();
     }
+    if (param === 'target') updateLFOPanRouting();
   }
 
   function setDistortion(param, value) {
@@ -1896,6 +1984,7 @@ const Synth = (() => {
     modBusOsc1Det  .offset.setValueAtTime(mv.osc1_det   * getRange('osc1_det'),         now); // cents
     modBusOsc2Det  .offset.setValueAtTime(mv.osc2_det   * getRange('osc2_det'),         now);
     modBusOsc3Det  .offset.setValueAtTime(mv.osc3_det   * getRange('osc3_det'),         now);
+    modBusPan      .offset.setValueAtTime(clamp(mv.pan   * getRange('pan'), -1, 1),      now); // -1..+1
 
     // Filter resonance — direct (no conflict with envelope)
     if (mv.filter_res !== 0) {
@@ -1912,6 +2001,13 @@ const Synth = (() => {
 
   // ── Load preset ───────────────────────────────────────────
   function loadPreset(preset) {
+    // Pan is not carried by the built-in presets — recentre it so a patch
+    // always loads with the stereo image its designer intended.
+    if (preset.masterPan === undefined) state.masterPan = 0;
+    ['osc1', 'osc2', 'osc3'].forEach(k => {
+      if (!preset[k] || preset[k].pan === undefined) state[k].pan = 0;
+    });
+
     // Deep merge preset into state
     deepMerge(state, preset);
 
@@ -1929,6 +2025,7 @@ const Synth = (() => {
     } else {
       stopLFO();
     }
+    updateLFOPanRouting();
 
     // Sync FX nodes
     setDistortion('enabled', state.dist.enabled);
@@ -1942,6 +2039,7 @@ const Synth = (() => {
     setReverb('damp', state.reverb.damp);
     setReverb('mix', state.reverb.mix);
     setMasterVolume(state.masterVolume);
+    setMasterPan(state.masterPan);
   }
 
   // ── Helpers ───────────────────────────────────────────────
@@ -1975,7 +2073,7 @@ const Synth = (() => {
   return {
     init, ensureContext,
     noteOn, noteOff, panic,
-    setMasterVolume,
+    setMasterVolume, setMasterPan,
     setOsc, setEnv, setFEnv,
     setFilter, setOscFilter, setLFO, applyModMatrix,
     setDistortion, setChorus, setDelay, setReverb,
@@ -1985,6 +2083,7 @@ const Synth = (() => {
     setQuality, getQuality,
     _voiceDestination: null,
     _chorusWetGain: null,
+    get _masterPanner() { return masterPanner; },
   };
 
 })();
@@ -2463,20 +2562,33 @@ const ModMatrix = (() => {
   // Matrix: rows=sources, cols=destinations
   // Each cell: { amount: -1..+1, enabled: bool }
   const matrix = {};
-  SOURCES.forEach(src => {
-    matrix[src.id] = {};
-    DESTINATIONS.forEach(dst => {
-      matrix[src.id][dst.id] = { amount: 0, enabled: false };
-    });
-  });
 
-  // Some useful defaults
-  matrix.lfo1.pitch.amount    = 0.1;
-  matrix.lfo1.pitch.enabled   = false;
-  matrix.lfo2.filter_cut.amount = 0.4;
-  matrix.velocity.amp.amount  = 0.8;
-  matrix.velocity.amp.enabled = true;
-  matrix.modwheel.lfo1_rate.amount = 0.5;
+  // Factory defaults — also what reset() restores, so selecting a patch can
+  // always return the matrix to a known state instead of inheriting whatever
+  // routings the previous patch (or the user) left behind.
+  const DEFAULT_CELLS = {
+    lfo1:     { pitch:      { amount: 0.1, enabled: false } },
+    lfo2:     { filter_cut: { amount: 0.4, enabled: false } },
+    velocity: { amp:        { amount: 0.8, enabled: true  } },
+    modwheel: { lfo1_rate:  { amount: 0.5, enabled: false } },
+  };
+
+  const DEFAULT_LFO2 = { enabled: false, wave: 'sine', rate: 1.5, depth: 0.5, phase: 0 };
+
+  function reset() {
+    SOURCES.forEach(src => {
+      if (!matrix[src.id]) matrix[src.id] = {};
+      DESTINATIONS.forEach(dst => {
+        const def = (DEFAULT_CELLS[src.id] || {})[dst.id];
+        matrix[src.id][dst.id] = def
+          ? { amount: def.amount, enabled: def.enabled }
+          : { amount: 0, enabled: false };
+      });
+    });
+    Object.assign(lfo2State, DEFAULT_LFO2);
+    _lfo2Phase = 0;
+    DESTINATIONS.forEach(d => { modValues[d.id] = 0; });
+  }
 
   // ── Source signal values (updated each frame) ─────────────
   const sourceValues = {};
@@ -2487,13 +2599,14 @@ const ModMatrix = (() => {
   DESTINATIONS.forEach(d => { modValues[d.id] = 0; });
 
   // ── LFO2 (independent from synth LFO for mod matrix use) ──
-  const lfo2State = {
-    enabled: false, wave: 'sine', rate: 1.5, depth: 0.5, phase: 0,
-  };
+  const lfo2State = { ...DEFAULT_LFO2 };
   let _lfo2Phase = 0;
   let _randomValue = 0;
   let _randomTimer = 0;
   let _modWheelValue = 0;
+
+  // Populate the matrix with the factory defaults
+  reset();
 
   // Called every audio frame tick (e.g. 60fps) to update source values
   let _noteValue = 0;    // 0..1 from MIDI note
@@ -2590,7 +2703,7 @@ const ModMatrix = (() => {
   return {
     SOURCES, DESTINATIONS,
     tick, getModValue, getCell,
-    setCell, setCellAmount, setCellEnabled,
+    setCell, setCellAmount, setCellEnabled, reset,
     setModWheel, setLFO2,
     getState, loadState,
     get sourceValues() { return sourceValues; },
@@ -3006,6 +3119,11 @@ const Renderer = (() => {
     masterGain.gain.value = s.masterVolume;
     masterGain.connect(offCtx.destination);
 
+    // Master pan (also the LFO auto-pan target)
+    const masterPan = offCtx.createStereoPanner();
+    masterPan.pan.value = clamp(s.masterPan || 0, -1, 1);
+    masterPan.connect(masterGain);
+
     // ── Effect chain ──
     const voiceDest = offCtx.createGain(); // where voices connect
 
@@ -3051,7 +3169,7 @@ const Renderer = (() => {
     const postRev = offCtx.createGain();
     postDelay.connect(postRev); postDelay.connect(revNode);
     revNode.connect(revWet); revWet.connect(postRev);
-    postRev.connect(masterGain);
+    postRev.connect(masterPan);
 
     // ── LFO ──
     let lfoOsc = null, lfoGain = null;
@@ -3061,8 +3179,10 @@ const Renderer = (() => {
       lfoOsc.type = s.lfo.wave;
       lfoOsc.frequency.value = s.lfo.rate;
       const d = s.lfo.depth;
-      lfoGain.gain.value = { pitch: d*200, filter: d*5000, amplitude: d*0.5 }[s.lfo.target] ?? d;
+      lfoGain.gain.value = { pitch: d*200, filter: d*5000, amplitude: d*0.5, pan: d }[s.lfo.target] ?? d;
       lfoOsc.connect(lfoGain); lfoOsc.start(0);
+      // Auto-pan is global, so it is wired once here rather than per voice
+      if (s.lfo.target === 'pan') lfoGain.connect(masterPan.pan);
     }
 
     // ── Noise buffer ──
@@ -3103,8 +3223,11 @@ const Renderer = (() => {
       const oscMixer = offCtx.createGain();
       const allOscs  = [];
 
-      // Per-osc filter
-      function makeOscFilt(fs) {
+      // Per-osc filter → per-osc stereo panner → mixer
+      function makeOscFilt(fs, pan) {
+        const panner = offCtx.createStereoPanner();
+        panner.pan.value = clamp(pan || 0, -1, 1);
+        panner.connect(oscMixer);
         const f = offCtx.createBiquadFilter();
         f.type = fs.type;
         f.frequency.setValueAtTime(fs.cutoff, t);
@@ -3118,7 +3241,7 @@ const Renderer = (() => {
           const sc = offCtx.createGain(); sc.gain.value = fs.lfoDepth * s.lfo.depth * 5000;
           lfoOsc.connect(sc); sc.connect(f.frequency);
         }
-        f.connect(oscMixer);
+        f.connect(panner);
         return f;
       }
 
@@ -3140,9 +3263,9 @@ const Renderer = (() => {
         }
       }
 
-      const f1 = makeOscFilt(s.osc1.filter);
-      const f2 = makeOscFilt(s.osc2.filter);
-      const f3 = makeOscFilt(s.osc3.filter);
+      const f1 = makeOscFilt(s.osc1.filter, s.osc1.pan);
+      const f2 = makeOscFilt(s.osc2.filter, s.osc2.pan);
+      const f3 = makeOscFilt(s.osc3.filter, s.osc3.pan);
       buildOscs(s.osc1, f1);
       buildOscs(s.osc2, f2);
       buildOscs(s.osc3, f3);
@@ -3636,7 +3759,10 @@ const SpectralFFT = (() => {
     voice.oscs.forEach(o => { try { o.stop(stopTime); } catch(e) {} });
 
     setTimeout(() => {
-      activeVoices.delete(midiNote);
+      // Only drop the entry if it is still this voice — replaying the same note
+      // during its release tail installs a new voice under the same key, and
+      // deleting that would leave it sounding with nothing able to stop it.
+      if (activeVoices.get(midiNote) === voice) activeVoices.delete(midiNote);
       try { voice.preMix.disconnect(); } catch(e) {}
       try { voice.eigenOut.disconnect(); } catch(e) {}
       try { voice.ampEnv.disconnect(); } catch(e) {}
@@ -4208,7 +4334,10 @@ const UI = (() => {
   };
 
   let kbOctave = 4;
-  const pressedKeys = new Set();
+  // key char → the MIDI note it actually started. Keeping the note (rather than
+  // recomputing it on keyup) means changing octave with Z/X while a key is held
+  // still releases the note that is sounding instead of stranding it.
+  const pressedKeys = new Map();
 
   // Piano layout: [semitone, isBlack, keyHint]
   const PIANO_MAP = [
@@ -4223,8 +4352,16 @@ const UI = (() => {
   const $ = id => document.getElementById(id);
   const midiName = n => NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);
 
+  // Pan readout: L100 … C … R100
+  function fmtPan(v) {
+    v = parseFloat(v) || 0;
+    if (Math.abs(v) < 0.005) return 'C';
+    return (v < 0 ? 'L' : 'R') + Math.round(Math.abs(v) * 100);
+  }
+
   function fmt(id, v) {
     v = parseFloat(v);
+    if (id.endsWith('-pan')) return fmtPan(v);
     if (id.includes('level') || id.includes('sustain') || id.includes('mix') ||
         id.includes('damp')  || id.includes('density') || id.includes('notelen') ||
         id.includes('swing') || id.includes('depth') || id.includes('fm-index'))
@@ -4259,6 +4396,19 @@ const UI = (() => {
       if (vEl) vEl.textContent = fmt(id, el.value);
       fn(el.value);
     });
+  }
+
+  // Double-click (or double-tap) a slider to snap it back to a default
+  function bindDblClickReset(id, defaultValue, fn) {
+    const el = $(id);
+    if (!el) return;
+    const reset = () => {
+      el.value = defaultValue;
+      const vEl = $(id + '-v');
+      if (vEl) vEl.textContent = fmt(id, el.value);
+      fn(el.value);
+    };
+    el.addEventListener('dblclick', reset);
   }
 
   function bindCheck(id, fn) {
@@ -4380,11 +4530,26 @@ const UI = (() => {
     updateActiveNotesDisplay();
   }
 
+  // Release everything the user is physically holding, without touching
+  // anything else that is running (the random generator, a recording…).
+  function releaseHeldKeys() {
+    const notes = new Set(pressedKeys.values());
+    pressedKeys.clear();
+    document.querySelectorAll('.key.active').forEach(k => {
+      k.classList.remove('active');
+      const n = parseInt(k.dataset.midi);
+      if (!isNaN(n)) notes.add(n);
+    });
+    notes.forEach(n => { releaseNote(n); setPianoKey(n, false); });
+  }
+
   function panicAll() {
     Synth.panic();
     FMEngine.panic();
     WTEngine.panic();
     SpectralFFT.panic();
+    pressedKeys.clear();
+    document.querySelectorAll('.key.active').forEach(k => k.classList.remove('active'));
     RandomGen.stop();
     $('rand-status').textContent = 'Stopped';
     updateActiveNotesDisplay();
@@ -4408,8 +4573,8 @@ const UI = (() => {
 
       const offset = KEY_MAP[k];
       if (offset === undefined || pressedKeys.has(k)) return;
-      pressedKeys.add(k);
       const midiNote = kbOctave * 12 + offset;
+      pressedKeys.set(k, midiNote);
       Synth.ensureContext();
       playNote(midiNote, 0.85);
       setPianoKey(midiNote, true);
@@ -4417,10 +4582,9 @@ const UI = (() => {
 
     document.addEventListener('keyup', e => {
       const k = e.key.toLowerCase();
-      const offset = KEY_MAP[k];
-      if (offset === undefined) return;
+      const midiNote = pressedKeys.get(k);
+      if (midiNote === undefined) return;
       pressedKeys.delete(k);
-      const midiNote = kbOctave * 12 + offset;
       releaseNote(midiNote);
       setPianoKey(midiNote, false);
     });
@@ -4429,12 +4593,17 @@ const UI = (() => {
   // ── Subtractive controls ──────────────────────────────────
   function bindSubtractive() {
     bindRange('master-volume', v => { Synth.setMasterVolume(parseFloat(v)); $('master-vol-disp').textContent = `${Math.round(v*100)}%`; });
+    const setMasterPan = v => { Synth.setMasterPan(parseFloat(v)); $('master-pan-disp').textContent = fmtPan(v); };
+    bindRange('master-pan', setMasterPan);
+    bindDblClickReset('master-pan', 0, setMasterPan);
 
     bindCheck('osc1-enabled', v => Synth.setOsc('osc1','enabled',v));
     bindWaveGroup('[data-osc="1"]', v => Synth.setOsc('osc1','wave',v));
     bindRange('osc1-octave', v => Synth.setOsc('osc1','octave',parseInt(v)));
     bindRange('osc1-detune', v => Synth.setOsc('osc1','detune',parseFloat(v)));
     bindRange('osc1-level',  v => Synth.setOsc('osc1','level', parseFloat(v)));
+    bindRange('osc1-pan',    v => Synth.setOsc('osc1','pan',   parseFloat(v)));
+    bindDblClickReset('osc1-pan', 0, v => Synth.setOsc('osc1','pan', parseFloat(v)));
     bindRange('osc1-voices', v => Synth.setOsc('osc1','voices', parseInt(v)));
     bindRange('osc1-spread', v => Synth.setOsc('osc1','unisonSpread', parseFloat(v)));
 
@@ -4443,6 +4612,8 @@ const UI = (() => {
     bindRange('osc2-octave', v => Synth.setOsc('osc2','octave',parseInt(v)));
     bindRange('osc2-detune', v => Synth.setOsc('osc2','detune',parseFloat(v)));
     bindRange('osc2-level',  v => Synth.setOsc('osc2','level', parseFloat(v)));
+    bindRange('osc2-pan',    v => Synth.setOsc('osc2','pan',   parseFloat(v)));
+    bindDblClickReset('osc2-pan', 0, v => Synth.setOsc('osc2','pan', parseFloat(v)));
     bindRange('osc2-voices', v => Synth.setOsc('osc2','voices', parseInt(v)));
     bindRange('osc2-spread', v => Synth.setOsc('osc2','unisonSpread', parseFloat(v)));
 
@@ -4451,6 +4622,8 @@ const UI = (() => {
     bindRange('osc3-octave', v => Synth.setOsc('osc3','octave',parseInt(v)));
     bindRange('osc3-detune', v => Synth.setOsc('osc3','detune',parseFloat(v)));
     bindRange('osc3-level',  v => Synth.setOsc('osc3','level', parseFloat(v)));
+    bindRange('osc3-pan',    v => Synth.setOsc('osc3','pan',   parseFloat(v)));
+    bindDblClickReset('osc3-pan', 0, v => Synth.setOsc('osc3','pan', parseFloat(v)));
     bindRange('osc3-voices', v => Synth.setOsc('osc3','voices', parseInt(v)));
     bindRange('osc3-spread', v => Synth.setOsc('osc3','unisonSpread', parseFloat(v)));
 
@@ -4903,6 +5076,9 @@ const UI = (() => {
     const table = $('mod-matrix-table');
     if (!table) return;
 
+    // Rebuilt whenever a patch is loaded, so start from an empty table
+    table.innerHTML = '';
+
     const { SOURCES, DESTINATIONS } = ModMatrix;
 
     // Header
@@ -5128,17 +5304,26 @@ const UI = (() => {
       const [type, idx] = sel.value.split(':');
       const p = type === 'user' ? loadUserPatches()[parseInt(idx)] : Presets[parseInt(idx)];
       if (!p) return;
-      Synth.loadPreset(p);
-      syncUIToState();
+      applyPatch(p);
       // Show delete button only for user patches
       if ($('delete-preset-btn')) $('delete-preset-btn').style.display = type === 'user' ? '' : 'none';
     });
+
+    // Start fresh: reload the Init patch with everything back to defaults
+    if ($('init-patch-btn')) {
+      $('init-patch-btn').addEventListener('click', () => {
+        panicAll();
+        applyPatch(Presets[0]);
+        sel.value = 'builtin:0';
+        if ($('delete-preset-btn')) $('delete-preset-btn').style.display = 'none';
+      });
+    }
 
     // Save current settings as a named user patch
     saveBtn.addEventListener('click', () => {
       const name = prompt('Name this patch:', 'My Patch');
       if (!name || !name.trim()) return;
-      const snap = JSON.parse(JSON.stringify(Synth.getState()));
+      const snap = snapshotPatch();
       snap.name = name.trim();
       const user = loadUserPatches();
       user.push(snap);
@@ -5165,7 +5350,7 @@ const UI = (() => {
     // Export current patch as a JSON file
     if ($('export-patch-btn')) {
       $('export-patch-btn').addEventListener('click', () => {
-        const snap = JSON.parse(JSON.stringify(Synth.getState()));
+        const snap = snapshotPatch();
         const name = snap.name || 'qoix-patch';
         snap.name = name;
         const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
@@ -5192,8 +5377,7 @@ const UI = (() => {
             user.push(patch);
             saveUserPatches(user);
             rebuildOptions('user:' + (user.length - 1));
-            Synth.loadPreset(patch);
-            syncUIToState();
+            applyPatch(patch);
             if ($('delete-preset-btn')) $('delete-preset-btn').style.display = '';
           } catch(err) { alert('Could not load patch: ' + err.message); }
         };
@@ -5201,6 +5385,43 @@ const UI = (() => {
         e.target.value = '';
       });
     }
+  }
+
+  // ── Patch snapshot / apply ────────────────────────────────
+  // A patch is the synth state *plus* the mod matrix, so saved patches
+  // reproduce their routings instead of inheriting whatever was on screen.
+  function snapshotPatch() {
+    const snap = JSON.parse(JSON.stringify(Synth.getState()));
+    snap.modMatrix = ModMatrix.getState();
+    return snap;
+  }
+
+  // Load a patch and put everything else back to a known state, so the patch
+  // is heard as it was designed rather than through the previous patch's
+  // modulation routings and extra synthesis layers.
+  function applyPatch(p) {
+    // The matrix travels with the patch but is not part of the synth state,
+    // so keep it out of the deep merge
+    const { modMatrix, ...synthPatch } = p;
+    Synth.loadPreset(synthPatch);
+
+    ModMatrix.reset();
+    if (modMatrix) ModMatrix.loadState(modMatrix);
+    buildModMatrix();
+
+    // Extra engines stack on top of the subtractive patch — clear them unless
+    // this patch explicitly asks for them.
+    setLayerEnabled('fm-enabled',       !!p.fm,       v => FMEngine.setEnabled(v));
+    setLayerEnabled('wt-enabled',       !!p.wt,       v => WTEngine.setEnabled(v));
+    setLayerEnabled('spectral-enabled', !!p.spectral, v => SpectralFFT.setEnabled(v));
+
+    syncUIToState();
+  }
+
+  function setLayerEnabled(checkboxId, enabled, fn) {
+    const el = $(checkboxId);
+    if (el) el.checked = enabled;
+    fn(enabled);
   }
 
   // ── Sync UI from engine state ─────────────────────────────
@@ -5213,19 +5434,35 @@ const UI = (() => {
       const vEl = $(id + '-v'); if (vEl) vEl.textContent = fmt(id, v);
     }
     function sc(id, v) { const el = $(id); if (el) el.checked = v; }
+    // The wave buttons live *inside* the [data-osc=…] container, so select the
+    // children — matching the container itself just cleared every highlight.
     function sw(attr, val) {
-      document.querySelectorAll(`[${attr}]`).forEach(b => {
+      document.querySelectorAll(`[${attr}] .wb`).forEach(b => {
         b.classList.toggle('active', (b.dataset.wave || b.dataset.filter) === val);
       });
     }
 
-    sc('osc1-enabled', s.osc1.enabled);
-    sw('data-osc="1"', s.osc1.wave);
-    sr('osc1-octave', s.osc1.octave); sr('osc1-detune', s.osc1.detune); sr('osc1-level', s.osc1.level);
-
-    sc('osc2-enabled', s.osc2.enabled);
-    sw('data-osc="2"', s.osc2.wave);
-    sr('osc2-octave', s.osc2.octave); sr('osc2-detune', s.osc2.detune); sr('osc2-level', s.osc2.level);
+    [1, 2, 3].forEach(n => {
+      const os = s[`osc${n}`];
+      if (!os) return;
+      sc(`osc${n}-enabled`, os.enabled);
+      sw(`data-osc="${n}"`, os.wave);
+      sr(`osc${n}-octave`, os.octave);
+      sr(`osc${n}-detune`, os.detune);
+      sr(`osc${n}-level`,  os.level);
+      sr(`osc${n}-pan`,    os.pan || 0);
+      sr(`osc${n}-voices`, os.voices || 1);
+      sr(`osc${n}-spread`, os.unisonSpread || 0);
+      sr(`osc${n}-fm-index`, os.fmIndex || 0);
+      const fmGroup = document.querySelector(`[data-oscfm="${n}"]`);
+      if (fmGroup) fmGroup.querySelectorAll('.wb').forEach(b => {
+        b.classList.toggle('active', b.dataset.fmsrc === (os.fmFrom || 'none'));
+      });
+      const mixGroup = document.querySelector(`[data-oscmix="${n}"]`);
+      if (mixGroup) mixGroup.querySelectorAll('.wb').forEach(b => {
+        b.classList.toggle('active', b.dataset.mixmode === (os.mixMode || 'add'));
+      });
+    });
 
     // Per-osc filter sync
     [1, 2, 3].forEach(n => {
@@ -5273,6 +5510,17 @@ const UI = (() => {
 
     const mvEl = $('master-vol-disp');
     if (mvEl) mvEl.textContent = `${Math.round(s.masterVolume * 100)}%`;
+    const mpEl = $('master-pan');
+    if (mpEl) mpEl.value = s.masterPan || 0;
+    const mpDisp = $('master-pan-disp');
+    if (mpDisp) mpDisp.textContent = fmtPan(s.masterPan || 0);
+
+    // LFO2 (mod matrix) controls live outside the synth state
+    const l2 = ModMatrix.getState().lfo2;
+    sr('lfo2-rate', l2.rate); sr('lfo2-depth', l2.depth);
+    document.querySelectorAll('[data-osc="lfo2"] .wb').forEach(b => {
+      b.classList.toggle('active', b.dataset.wave === l2.wave);
+    });
   }
 
   // ── Envelope canvas draw ──────────────────────────────────
@@ -5862,6 +6110,9 @@ const UI = (() => {
     // (e.g. notification banner, scroll gesture, phone call) or page goes hidden.
     document.addEventListener('touchcancel', () => panicAll(), { passive: true });
     document.addEventListener('visibilitychange', () => { if (document.hidden) panicAll(); });
+    // Leaving the window swallows the matching keyup/mouseup — release what is
+    // held, but leave the random generator and any tail ringing as they are
+    window.addEventListener('blur', () => releaseHeldKeys());
 
     // Fix slide-between-keys: track which piano key each touch is currently over
     // and fire on/off as fingers move across keys.

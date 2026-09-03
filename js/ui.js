@@ -19,7 +19,10 @@ const UI = (() => {
   };
 
   let kbOctave = 4;
-  const pressedKeys = new Set();
+  // key char → the MIDI note it actually started. Keeping the note (rather than
+  // recomputing it on keyup) means changing octave with Z/X while a key is held
+  // still releases the note that is sounding instead of stranding it.
+  const pressedKeys = new Map();
 
   // Piano layout: [semitone, isBlack, keyHint]
   const PIANO_MAP = [
@@ -34,8 +37,16 @@ const UI = (() => {
   const $ = id => document.getElementById(id);
   const midiName = n => NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);
 
+  // Pan readout: L100 … C … R100
+  function fmtPan(v) {
+    v = parseFloat(v) || 0;
+    if (Math.abs(v) < 0.005) return 'C';
+    return (v < 0 ? 'L' : 'R') + Math.round(Math.abs(v) * 100);
+  }
+
   function fmt(id, v) {
     v = parseFloat(v);
+    if (id.endsWith('-pan')) return fmtPan(v);
     if (id.includes('level') || id.includes('sustain') || id.includes('mix') ||
         id.includes('damp')  || id.includes('density') || id.includes('notelen') ||
         id.includes('swing') || id.includes('depth') || id.includes('fm-index'))
@@ -70,6 +81,19 @@ const UI = (() => {
       if (vEl) vEl.textContent = fmt(id, el.value);
       fn(el.value);
     });
+  }
+
+  // Double-click (or double-tap) a slider to snap it back to a default
+  function bindDblClickReset(id, defaultValue, fn) {
+    const el = $(id);
+    if (!el) return;
+    const reset = () => {
+      el.value = defaultValue;
+      const vEl = $(id + '-v');
+      if (vEl) vEl.textContent = fmt(id, el.value);
+      fn(el.value);
+    };
+    el.addEventListener('dblclick', reset);
   }
 
   function bindCheck(id, fn) {
@@ -191,11 +215,26 @@ const UI = (() => {
     updateActiveNotesDisplay();
   }
 
+  // Release everything the user is physically holding, without touching
+  // anything else that is running (the random generator, a recording…).
+  function releaseHeldKeys() {
+    const notes = new Set(pressedKeys.values());
+    pressedKeys.clear();
+    document.querySelectorAll('.key.active').forEach(k => {
+      k.classList.remove('active');
+      const n = parseInt(k.dataset.midi);
+      if (!isNaN(n)) notes.add(n);
+    });
+    notes.forEach(n => { releaseNote(n); setPianoKey(n, false); });
+  }
+
   function panicAll() {
     Synth.panic();
     FMEngine.panic();
     WTEngine.panic();
     SpectralFFT.panic();
+    pressedKeys.clear();
+    document.querySelectorAll('.key.active').forEach(k => k.classList.remove('active'));
     RandomGen.stop();
     $('rand-status').textContent = 'Stopped';
     updateActiveNotesDisplay();
@@ -219,8 +258,8 @@ const UI = (() => {
 
       const offset = KEY_MAP[k];
       if (offset === undefined || pressedKeys.has(k)) return;
-      pressedKeys.add(k);
       const midiNote = kbOctave * 12 + offset;
+      pressedKeys.set(k, midiNote);
       Synth.ensureContext();
       playNote(midiNote, 0.85);
       setPianoKey(midiNote, true);
@@ -228,10 +267,9 @@ const UI = (() => {
 
     document.addEventListener('keyup', e => {
       const k = e.key.toLowerCase();
-      const offset = KEY_MAP[k];
-      if (offset === undefined) return;
+      const midiNote = pressedKeys.get(k);
+      if (midiNote === undefined) return;
       pressedKeys.delete(k);
-      const midiNote = kbOctave * 12 + offset;
       releaseNote(midiNote);
       setPianoKey(midiNote, false);
     });
@@ -240,12 +278,17 @@ const UI = (() => {
   // ── Subtractive controls ──────────────────────────────────
   function bindSubtractive() {
     bindRange('master-volume', v => { Synth.setMasterVolume(parseFloat(v)); $('master-vol-disp').textContent = `${Math.round(v*100)}%`; });
+    const setMasterPan = v => { Synth.setMasterPan(parseFloat(v)); $('master-pan-disp').textContent = fmtPan(v); };
+    bindRange('master-pan', setMasterPan);
+    bindDblClickReset('master-pan', 0, setMasterPan);
 
     bindCheck('osc1-enabled', v => Synth.setOsc('osc1','enabled',v));
     bindWaveGroup('[data-osc="1"]', v => Synth.setOsc('osc1','wave',v));
     bindRange('osc1-octave', v => Synth.setOsc('osc1','octave',parseInt(v)));
     bindRange('osc1-detune', v => Synth.setOsc('osc1','detune',parseFloat(v)));
     bindRange('osc1-level',  v => Synth.setOsc('osc1','level', parseFloat(v)));
+    bindRange('osc1-pan',    v => Synth.setOsc('osc1','pan',   parseFloat(v)));
+    bindDblClickReset('osc1-pan', 0, v => Synth.setOsc('osc1','pan', parseFloat(v)));
     bindRange('osc1-voices', v => Synth.setOsc('osc1','voices', parseInt(v)));
     bindRange('osc1-spread', v => Synth.setOsc('osc1','unisonSpread', parseFloat(v)));
 
@@ -254,6 +297,8 @@ const UI = (() => {
     bindRange('osc2-octave', v => Synth.setOsc('osc2','octave',parseInt(v)));
     bindRange('osc2-detune', v => Synth.setOsc('osc2','detune',parseFloat(v)));
     bindRange('osc2-level',  v => Synth.setOsc('osc2','level', parseFloat(v)));
+    bindRange('osc2-pan',    v => Synth.setOsc('osc2','pan',   parseFloat(v)));
+    bindDblClickReset('osc2-pan', 0, v => Synth.setOsc('osc2','pan', parseFloat(v)));
     bindRange('osc2-voices', v => Synth.setOsc('osc2','voices', parseInt(v)));
     bindRange('osc2-spread', v => Synth.setOsc('osc2','unisonSpread', parseFloat(v)));
 
@@ -262,6 +307,8 @@ const UI = (() => {
     bindRange('osc3-octave', v => Synth.setOsc('osc3','octave',parseInt(v)));
     bindRange('osc3-detune', v => Synth.setOsc('osc3','detune',parseFloat(v)));
     bindRange('osc3-level',  v => Synth.setOsc('osc3','level', parseFloat(v)));
+    bindRange('osc3-pan',    v => Synth.setOsc('osc3','pan',   parseFloat(v)));
+    bindDblClickReset('osc3-pan', 0, v => Synth.setOsc('osc3','pan', parseFloat(v)));
     bindRange('osc3-voices', v => Synth.setOsc('osc3','voices', parseInt(v)));
     bindRange('osc3-spread', v => Synth.setOsc('osc3','unisonSpread', parseFloat(v)));
 
@@ -714,6 +761,9 @@ const UI = (() => {
     const table = $('mod-matrix-table');
     if (!table) return;
 
+    // Rebuilt whenever a patch is loaded, so start from an empty table
+    table.innerHTML = '';
+
     const { SOURCES, DESTINATIONS } = ModMatrix;
 
     // Header
@@ -939,17 +989,26 @@ const UI = (() => {
       const [type, idx] = sel.value.split(':');
       const p = type === 'user' ? loadUserPatches()[parseInt(idx)] : Presets[parseInt(idx)];
       if (!p) return;
-      Synth.loadPreset(p);
-      syncUIToState();
+      applyPatch(p);
       // Show delete button only for user patches
       if ($('delete-preset-btn')) $('delete-preset-btn').style.display = type === 'user' ? '' : 'none';
     });
+
+    // Start fresh: reload the Init patch with everything back to defaults
+    if ($('init-patch-btn')) {
+      $('init-patch-btn').addEventListener('click', () => {
+        panicAll();
+        applyPatch(Presets[0]);
+        sel.value = 'builtin:0';
+        if ($('delete-preset-btn')) $('delete-preset-btn').style.display = 'none';
+      });
+    }
 
     // Save current settings as a named user patch
     saveBtn.addEventListener('click', () => {
       const name = prompt('Name this patch:', 'My Patch');
       if (!name || !name.trim()) return;
-      const snap = JSON.parse(JSON.stringify(Synth.getState()));
+      const snap = snapshotPatch();
       snap.name = name.trim();
       const user = loadUserPatches();
       user.push(snap);
@@ -976,7 +1035,7 @@ const UI = (() => {
     // Export current patch as a JSON file
     if ($('export-patch-btn')) {
       $('export-patch-btn').addEventListener('click', () => {
-        const snap = JSON.parse(JSON.stringify(Synth.getState()));
+        const snap = snapshotPatch();
         const name = snap.name || 'qoix-patch';
         snap.name = name;
         const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
@@ -1003,8 +1062,7 @@ const UI = (() => {
             user.push(patch);
             saveUserPatches(user);
             rebuildOptions('user:' + (user.length - 1));
-            Synth.loadPreset(patch);
-            syncUIToState();
+            applyPatch(patch);
             if ($('delete-preset-btn')) $('delete-preset-btn').style.display = '';
           } catch(err) { alert('Could not load patch: ' + err.message); }
         };
@@ -1012,6 +1070,43 @@ const UI = (() => {
         e.target.value = '';
       });
     }
+  }
+
+  // ── Patch snapshot / apply ────────────────────────────────
+  // A patch is the synth state *plus* the mod matrix, so saved patches
+  // reproduce their routings instead of inheriting whatever was on screen.
+  function snapshotPatch() {
+    const snap = JSON.parse(JSON.stringify(Synth.getState()));
+    snap.modMatrix = ModMatrix.getState();
+    return snap;
+  }
+
+  // Load a patch and put everything else back to a known state, so the patch
+  // is heard as it was designed rather than through the previous patch's
+  // modulation routings and extra synthesis layers.
+  function applyPatch(p) {
+    // The matrix travels with the patch but is not part of the synth state,
+    // so keep it out of the deep merge
+    const { modMatrix, ...synthPatch } = p;
+    Synth.loadPreset(synthPatch);
+
+    ModMatrix.reset();
+    if (modMatrix) ModMatrix.loadState(modMatrix);
+    buildModMatrix();
+
+    // Extra engines stack on top of the subtractive patch — clear them unless
+    // this patch explicitly asks for them.
+    setLayerEnabled('fm-enabled',       !!p.fm,       v => FMEngine.setEnabled(v));
+    setLayerEnabled('wt-enabled',       !!p.wt,       v => WTEngine.setEnabled(v));
+    setLayerEnabled('spectral-enabled', !!p.spectral, v => SpectralFFT.setEnabled(v));
+
+    syncUIToState();
+  }
+
+  function setLayerEnabled(checkboxId, enabled, fn) {
+    const el = $(checkboxId);
+    if (el) el.checked = enabled;
+    fn(enabled);
   }
 
   // ── Sync UI from engine state ─────────────────────────────
@@ -1024,19 +1119,35 @@ const UI = (() => {
       const vEl = $(id + '-v'); if (vEl) vEl.textContent = fmt(id, v);
     }
     function sc(id, v) { const el = $(id); if (el) el.checked = v; }
+    // The wave buttons live *inside* the [data-osc=…] container, so select the
+    // children — matching the container itself just cleared every highlight.
     function sw(attr, val) {
-      document.querySelectorAll(`[${attr}]`).forEach(b => {
+      document.querySelectorAll(`[${attr}] .wb`).forEach(b => {
         b.classList.toggle('active', (b.dataset.wave || b.dataset.filter) === val);
       });
     }
 
-    sc('osc1-enabled', s.osc1.enabled);
-    sw('data-osc="1"', s.osc1.wave);
-    sr('osc1-octave', s.osc1.octave); sr('osc1-detune', s.osc1.detune); sr('osc1-level', s.osc1.level);
-
-    sc('osc2-enabled', s.osc2.enabled);
-    sw('data-osc="2"', s.osc2.wave);
-    sr('osc2-octave', s.osc2.octave); sr('osc2-detune', s.osc2.detune); sr('osc2-level', s.osc2.level);
+    [1, 2, 3].forEach(n => {
+      const os = s[`osc${n}`];
+      if (!os) return;
+      sc(`osc${n}-enabled`, os.enabled);
+      sw(`data-osc="${n}"`, os.wave);
+      sr(`osc${n}-octave`, os.octave);
+      sr(`osc${n}-detune`, os.detune);
+      sr(`osc${n}-level`,  os.level);
+      sr(`osc${n}-pan`,    os.pan || 0);
+      sr(`osc${n}-voices`, os.voices || 1);
+      sr(`osc${n}-spread`, os.unisonSpread || 0);
+      sr(`osc${n}-fm-index`, os.fmIndex || 0);
+      const fmGroup = document.querySelector(`[data-oscfm="${n}"]`);
+      if (fmGroup) fmGroup.querySelectorAll('.wb').forEach(b => {
+        b.classList.toggle('active', b.dataset.fmsrc === (os.fmFrom || 'none'));
+      });
+      const mixGroup = document.querySelector(`[data-oscmix="${n}"]`);
+      if (mixGroup) mixGroup.querySelectorAll('.wb').forEach(b => {
+        b.classList.toggle('active', b.dataset.mixmode === (os.mixMode || 'add'));
+      });
+    });
 
     // Per-osc filter sync
     [1, 2, 3].forEach(n => {
@@ -1084,6 +1195,17 @@ const UI = (() => {
 
     const mvEl = $('master-vol-disp');
     if (mvEl) mvEl.textContent = `${Math.round(s.masterVolume * 100)}%`;
+    const mpEl = $('master-pan');
+    if (mpEl) mpEl.value = s.masterPan || 0;
+    const mpDisp = $('master-pan-disp');
+    if (mpDisp) mpDisp.textContent = fmtPan(s.masterPan || 0);
+
+    // LFO2 (mod matrix) controls live outside the synth state
+    const l2 = ModMatrix.getState().lfo2;
+    sr('lfo2-rate', l2.rate); sr('lfo2-depth', l2.depth);
+    document.querySelectorAll('[data-osc="lfo2"] .wb').forEach(b => {
+      b.classList.toggle('active', b.dataset.wave === l2.wave);
+    });
   }
 
   // ── Envelope canvas draw ──────────────────────────────────
@@ -1673,6 +1795,9 @@ const UI = (() => {
     // (e.g. notification banner, scroll gesture, phone call) or page goes hidden.
     document.addEventListener('touchcancel', () => panicAll(), { passive: true });
     document.addEventListener('visibilitychange', () => { if (document.hidden) panicAll(); });
+    // Leaving the window swallows the matching keyup/mouseup — release what is
+    // held, but leave the random generator and any tail ringing as they are
+    window.addEventListener('blur', () => releaseHeldKeys());
 
     // Fix slide-between-keys: track which piano key each touch is currently over
     // and fire on/off as fingers move across keys.

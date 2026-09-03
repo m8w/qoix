@@ -19,6 +19,16 @@ npm start
 npm run dev
 ```
 
+## Single-file build
+
+`qoix-standalone.html` inlines every script from `js/` so the synth runs from a
+single file (it still loads `styles.css` alongside it). Regenerate it whenever
+`index.html` or anything under `js/` changes:
+
+```bash
+npm run build:standalone
+```
+
 ## Build installers
 
 ```bash

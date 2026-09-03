@@ -45,20 +45,33 @@ const ModMatrix = (() => {
   // Matrix: rows=sources, cols=destinations
   // Each cell: { amount: -1..+1, enabled: bool }
   const matrix = {};
-  SOURCES.forEach(src => {
-    matrix[src.id] = {};
-    DESTINATIONS.forEach(dst => {
-      matrix[src.id][dst.id] = { amount: 0, enabled: false };
-    });
-  });
 
-  // Some useful defaults
-  matrix.lfo1.pitch.amount    = 0.1;
-  matrix.lfo1.pitch.enabled   = false;
-  matrix.lfo2.filter_cut.amount = 0.4;
-  matrix.velocity.amp.amount  = 0.8;
-  matrix.velocity.amp.enabled = true;
-  matrix.modwheel.lfo1_rate.amount = 0.5;
+  // Factory defaults — also what reset() restores, so selecting a patch can
+  // always return the matrix to a known state instead of inheriting whatever
+  // routings the previous patch (or the user) left behind.
+  const DEFAULT_CELLS = {
+    lfo1:     { pitch:      { amount: 0.1, enabled: false } },
+    lfo2:     { filter_cut: { amount: 0.4, enabled: false } },
+    velocity: { amp:        { amount: 0.8, enabled: true  } },
+    modwheel: { lfo1_rate:  { amount: 0.5, enabled: false } },
+  };
+
+  const DEFAULT_LFO2 = { enabled: false, wave: 'sine', rate: 1.5, depth: 0.5, phase: 0 };
+
+  function reset() {
+    SOURCES.forEach(src => {
+      if (!matrix[src.id]) matrix[src.id] = {};
+      DESTINATIONS.forEach(dst => {
+        const def = (DEFAULT_CELLS[src.id] || {})[dst.id];
+        matrix[src.id][dst.id] = def
+          ? { amount: def.amount, enabled: def.enabled }
+          : { amount: 0, enabled: false };
+      });
+    });
+    Object.assign(lfo2State, DEFAULT_LFO2);
+    _lfo2Phase = 0;
+    DESTINATIONS.forEach(d => { modValues[d.id] = 0; });
+  }
 
   // ── Source signal values (updated each frame) ─────────────
   const sourceValues = {};
@@ -69,13 +82,14 @@ const ModMatrix = (() => {
   DESTINATIONS.forEach(d => { modValues[d.id] = 0; });
 
   // ── LFO2 (independent from synth LFO for mod matrix use) ──
-  const lfo2State = {
-    enabled: false, wave: 'sine', rate: 1.5, depth: 0.5, phase: 0,
-  };
+  const lfo2State = { ...DEFAULT_LFO2 };
   let _lfo2Phase = 0;
   let _randomValue = 0;
   let _randomTimer = 0;
   let _modWheelValue = 0;
+
+  // Populate the matrix with the factory defaults
+  reset();
 
   // Called every audio frame tick (e.g. 60fps) to update source values
   let _noteValue = 0;    // 0..1 from MIDI note
@@ -172,7 +186,7 @@ const ModMatrix = (() => {
   return {
     SOURCES, DESTINATIONS,
     tick, getModValue, getCell,
-    setCell, setCellAmount, setCellEnabled,
+    setCell, setCellAmount, setCellEnabled, reset,
     setModWheel, setLFO2,
     getState, loadState,
     get sourceValues() { return sourceValues; },

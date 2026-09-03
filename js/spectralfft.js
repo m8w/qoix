@@ -245,7 +245,10 @@ const SpectralFFT = (() => {
     voice.oscs.forEach(o => { try { o.stop(stopTime); } catch(e) {} });
 
     setTimeout(() => {
-      activeVoices.delete(midiNote);
+      // Only drop the entry if it is still this voice — replaying the same note
+      // during its release tail installs a new voice under the same key, and
+      // deleting that would leave it sounding with nothing able to stop it.
+      if (activeVoices.get(midiNote) === voice) activeVoices.delete(midiNote);
       try { voice.preMix.disconnect(); } catch(e) {}
       try { voice.eigenOut.disconnect(); } catch(e) {}
       try { voice.ampEnv.disconnect(); } catch(e) {}

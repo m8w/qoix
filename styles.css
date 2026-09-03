@@ -169,6 +169,14 @@ input[type="range"]::-moz-range-thumb {
   background: var(--glow);
   border: 2px solid var(--bg);
 }
+/* Pan sliders: a centre tick makes the middle (C) position readable at a glance */
+input[type="range"].pan-slider {
+  background:
+    linear-gradient(var(--accent), var(--accent)) center / 1px 7px no-repeat,
+    var(--bg-inset);
+}
+#master-pan.hdr-pan { width: 84px; flex: none; }
+
 input[type="range"].vslider {
   writing-mode: vertical-lr;
   direction: rtl;
