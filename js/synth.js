@@ -827,6 +827,7 @@ const Synth = (() => {
 
   // ── Mod matrix application (called each animation frame) ──
   let _fmIndexWasModulated = false;
+  let _lfo1RateWasModulated = false;
   function applyModMatrix(dt) {
     if (!ctx || !modBusPitch) return;
 
@@ -834,9 +835,7 @@ const Synth = (() => {
     // It free-runs whether or not the LFO panel is switched on: that toggle
     // governs the LFO's own target, while the matrix is a separate patch bay
     // and its LFO 1 row would otherwise be dead until the panel was enabled.
-    const lfo1Rate = clamp(
-      state.lfo.rate + ModMatrix.getModValue('lfo1_rate') * ModMatrix.getRange('lfo1_rate'),
-      0.01, 30);
+    const lfo1Rate = ModMatrix.rateFor(state.lfo.rate, 'lfo1_rate');
     jsLFOPhase += lfo1Rate * dt * Math.PI * 2;
     if (jsLFOPhase > Math.PI * 2) jsLFOPhase %= Math.PI * 2;
     const lfo1Val = lfoShape(state.lfo.wave, jsLFOPhase);
@@ -913,8 +912,9 @@ const Synth = (() => {
     }
 
     // LFO1 rate
-    if (lfoOsc && mv.lfo1_rate !== 0) {
-      lfoOsc.frequency.setValueAtTime(clamp(state.lfo.rate + mv.lfo1_rate * getRange('lfo1_rate'), 0.01, 30), now);
+    if (lfoOsc && (mv.lfo1_rate !== 0 || _lfo1RateWasModulated)) {
+      lfoOsc.frequency.setValueAtTime(ModMatrix.rateFor(state.lfo.rate, 'lfo1_rate'), now);
+      _lfo1RateWasModulated = mv.lfo1_rate !== 0;
     }
   }
 

@@ -38,8 +38,8 @@ const ModMatrix = (() => {
     { id: 'osc3_det',    label: 'OSC3 Detune',    defaultRange: 100  },
     { id: 'fm_index',    label: 'FM Index',       defaultRange: 2    },
     { id: 'wt_pos',      label: 'WT Position',    defaultRange: 1    },
-    { id: 'lfo1_rate',   label: 'LFO1 Rate',      defaultRange: 10   },   // Hz
-    { id: 'lfo2_rate',   label: 'LFO2 Rate',      defaultRange: 10   },
+    { id: 'lfo1_rate',   label: 'LFO1 Rate',      defaultRange: 2    },   // octaves of rate
+    { id: 'lfo2_rate',   label: 'LFO2 Rate',      defaultRange: 2    },   // (x4 up / ÷4 down)
   ];
 
   // Matrix: rows=sources, cols=destinations
@@ -112,7 +112,7 @@ const ModMatrix = (() => {
     _velocity  = velVal;
 
     // LFO2 — its own rate is a destination, so fold in last frame's value
-    const lfo2Rate = clamp(lfo2State.rate + modValues.lfo2_rate * rangeOf('lfo2_rate'), 0.01, 30);
+    const lfo2Rate = clamp(rateWithMod(lfo2State.rate, modValues.lfo2_rate, rangeOf('lfo2_rate')), 0.01, 30);
     _lfo2Phase += lfo2Rate * dt * Math.PI * 2;
     if (_lfo2Phase > Math.PI * 2) _lfo2Phase %= Math.PI * 2;   // keep precision over long runs
     const lfo2Val = shape(lfo2State.wave, _lfo2Phase) * lfo2State.depth;
@@ -150,6 +150,13 @@ const ModMatrix = (() => {
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+  // Rate modulation is multiplicative, in octaves. Adding Hz would be lopsided:
+  // from a 2Hz base, +1 gave 12Hz while -1 hit the lower clamp and the
+  // modulator stalled. Scaling keeps the speed-up and slow-down symmetric.
+  function rateWithMod(base, modValue, octaves) {
+    return base * Math.pow(2, modValue * octaves);
+  }
+
   // Bipolar (-1..+1) waveform for a phase in radians
   function shape(wave, phase) {
     const t = (phase / (Math.PI * 2)) % 1;        // 0..1 through the cycle
@@ -170,6 +177,9 @@ const ModMatrix = (() => {
 
   // ── Getters ───────────────────────────────────────────────
   function getModValue(destId) { return modValues[destId] || 0; }
+  function rateFor(base, destId) {
+    return clamp(rateWithMod(base, modValues[destId] || 0, rangeOf(destId)), 0.01, 30);
+  }
   function getModDepth(destId) { return modDepths[destId] || 0; }
   function getRange(destId) { return rangeOf(destId); }
   function getCell(srcId, dstId) { return matrix[srcId][dstId]; }
@@ -217,7 +227,7 @@ const ModMatrix = (() => {
 
   return {
     SOURCES, DESTINATIONS,
-    tick, getModValue, getModDepth, getRange, getCell,
+    tick, getModValue, getModDepth, getRange, rateFor, getCell,
     setCell, setCellAmount, setCellEnabled, reset,
     setModWheel, setLFO2,
     getState, loadState,
