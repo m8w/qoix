@@ -691,6 +691,18 @@ const Synth = (() => {
     }
   }
 
+  // Bipolar waveform used by the JS-side LFO 1 mirror, matching the shape
+  // selected for the audio LFO
+  function lfoShape(wave, phase) {
+    const t = (phase / (Math.PI * 2)) % 1;
+    switch (wave) {
+      case 'triangle': return 4 * Math.abs(t - 0.5) - 1;
+      case 'square':   return t < 0.5 ? 1 : -1;
+      case 'sawtooth': return t * 2 - 1;
+      default:         return Math.sin(phase);
+    }
+  }
+
   function computeLFODepth() {
     const d = state.lfo.depth;
     switch (state.lfo.target) {
@@ -818,22 +830,33 @@ const Synth = (() => {
   function applyModMatrix(dt) {
     if (!ctx || !modBusPitch) return;
 
-    // JS-tracked LFO phase (mirrors the Web Audio LFO for mod matrix input)
-    if (state.lfo.enabled) jsLFOPhase += state.lfo.rate * dt * Math.PI * 2;
-    const lfo1Val = state.lfo.enabled ? Math.sin(jsLFOPhase) : 0;
+    // JS-tracked LFO phase (mirrors the Web Audio LFO for mod matrix input).
+    // It free-runs whether or not the LFO panel is switched on: that toggle
+    // governs the LFO's own target, while the matrix is a separate patch bay
+    // and its LFO 1 row would otherwise be dead until the panel was enabled.
+    const lfo1Rate = clamp(
+      state.lfo.rate + ModMatrix.getModValue('lfo1_rate') * ModMatrix.getRange('lfo1_rate'),
+      0.01, 30);
+    jsLFOPhase += lfo1Rate * dt * Math.PI * 2;
+    if (jsLFOPhase > Math.PI * 2) jsLFOPhase %= Math.PI * 2;
+    const lfo1Val = lfoShape(state.lfo.wave, jsLFOPhase);
 
-    // Approximate envelope value from oldest active voice
-    let envVal = 0;
+    // Envelope followers from the oldest active voice: Env 1 tracks the amp
+    // ADSR, Env 2 the filter ADSR, so they are genuinely different curves.
+    let envVal = 0, env2Val = 0;
     if (activeVoices.size > 0) {
       const voice = activeVoices.values().next().value;
       const age = ctx.currentTime - voice.startTime;
-      const { attack, decay, sustain } = state.env;
-      if      (age < attack)          envVal = age / attack;
-      else if (age < attack + decay)  envVal = 1 - (1 - sustain) * (age - attack) / decay;
-      else                            envVal = sustain;
+      const follow = ({ attack, decay, sustain }) => {
+        if (age < attack)         return attack > 0 ? age / attack : 1;
+        if (age < attack + decay) return decay > 0 ? 1 - (1 - sustain) * (age - attack) / decay : sustain;
+        return sustain;
+      };
+      envVal  = follow(state.env);
+      env2Val = follow(state.fenv);
     }
 
-    ModMatrix.tick(dt, lfo1Val, envVal, _lastNoteVal, _lastVelVal);
+    ModMatrix.tick(dt, lfo1Val, envVal, _lastNoteVal, _lastVelVal, env2Val);
 
     const mv  = ModMatrix.modValues;
     const now = ctx.currentTime;
@@ -868,18 +891,20 @@ const Synth = (() => {
       modAmpGain.gain.setTargetAtTime(target, now, 0.008);
     }
 
-    // FM Index — offsets each voice's osc-to-osc FM depth
+    // FM Index — offsets both the osc-to-osc FM depth on the Subtractive tab
+    // and the operator indices of the FM Synthesis engine
+    const fmOffset = mv.fm_index * getRange('fm_index');
     if (mv.fm_index !== 0 || _fmIndexWasModulated) {
-      const offset = mv.fm_index * getRange('fm_index');
       activeVoices.forEach(voice => {
         if (!voice.fmGains) return;
         voice.fmGains.forEach(({ node, baseFreq, oscKey }) => {
           const base = state[oscKey] ? (state[oscKey].fmIndex || 0) : 0;
-          node.gain.setTargetAtTime(clamp(base + offset, 0, 8) * baseFreq, now, 0.008);
+          node.gain.setTargetAtTime(clamp(base + fmOffset, 0, 8) * baseFreq, now, 0.008);
         });
       });
       _fmIndexWasModulated = mv.fm_index !== 0;
     }
+    if (typeof FMEngine !== 'undefined' && FMEngine.setModIndex) FMEngine.setModIndex(fmOffset);
 
     // WT Position — the wavetable engine caches waveforms per step, so this is
     // cheap to call every frame

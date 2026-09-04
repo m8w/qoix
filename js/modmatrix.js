@@ -105,7 +105,7 @@ const ModMatrix = (() => {
   let _envValue = 0;     // env from main synth
   let _lfo1Value = 0;    // from main synth LFO
 
-  function tick(dt, lfo1Val, envVal, noteVal, velVal) {
+  function tick(dt, lfo1Val, envVal, noteVal, velVal, env2Val) {
     _lfo1Value = lfo1Val;
     _envValue  = envVal;
     _noteValue = noteVal;
@@ -114,7 +114,8 @@ const ModMatrix = (() => {
     // LFO2 — its own rate is a destination, so fold in last frame's value
     const lfo2Rate = clamp(lfo2State.rate + modValues.lfo2_rate * rangeOf('lfo2_rate'), 0.01, 30);
     _lfo2Phase += lfo2Rate * dt * Math.PI * 2;
-    const lfo2Val = Math.sin(_lfo2Phase) * lfo2State.depth;
+    if (_lfo2Phase > Math.PI * 2) _lfo2Phase %= Math.PI * 2;   // keep precision over long runs
+    const lfo2Val = shape(lfo2State.wave, _lfo2Phase) * lfo2State.depth;
 
     // Random (sample-and-hold)
     _randomTimer -= dt;
@@ -126,7 +127,7 @@ const ModMatrix = (() => {
     sourceValues.lfo1     = lfo1Val;
     sourceValues.lfo2     = lfo2Val;
     sourceValues.env1     = envVal;
-    sourceValues.env2     = envVal * 0.7; // env2 as alternative curve
+    sourceValues.env2     = env2Val !== undefined ? env2Val : envVal * 0.7; // filter envelope
     sourceValues.velocity = velVal;
     sourceValues.note     = noteVal;
     sourceValues.random   = _randomValue;
@@ -148,6 +149,17 @@ const ModMatrix = (() => {
   }
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  // Bipolar (-1..+1) waveform for a phase in radians
+  function shape(wave, phase) {
+    const t = (phase / (Math.PI * 2)) % 1;        // 0..1 through the cycle
+    switch (wave) {
+      case 'triangle': return 4 * Math.abs(t - 0.5) - 1;
+      case 'square':   return t < 0.5 ? 1 : -1;
+      case 'sawtooth': return t * 2 - 1;
+      default:         return Math.sin(phase);
+    }
+  }
 
   function rangeOf(id) {
     const d = DESTINATIONS.find(x => x.id === id);

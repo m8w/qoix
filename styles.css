@@ -52,6 +52,7 @@ header {
 
 .header-center, .header-right {
   display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;   /* on a phone these groups wrap instead of pushing the page sideways */
 }
 .header-right { margin-left: auto; }
 
@@ -67,6 +68,8 @@ header {
 }
 
 .tab-btn {
+  /* Don't let 9 tabs squash on a narrow screen — the bar scrolls instead */
+  flex: 0 0 auto;
   padding: 10px 20px;
   background: transparent;
   border: none;

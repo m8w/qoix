@@ -49,7 +49,8 @@ const UI = (() => {
     if (id.endsWith('-pan')) return fmtPan(v);
     if (id.includes('level') || id.includes('sustain') || id.includes('mix') ||
         id.includes('damp')  || id.includes('density') || id.includes('notelen') ||
-        id.includes('swing') || id.includes('depth') || id.includes('fm-index'))
+        id.includes('swing') || id.includes('depth') || id.includes('fm-index') ||
+        id.includes('wheel'))
       return `${Math.round(v * 100)}%`;
     if (id.includes('attack') || id.includes('decay') || id.includes('release') ||
         id.includes('time') && id.includes('delay'))
@@ -226,6 +227,15 @@ const UI = (() => {
       if (!isNaN(n)) notes.add(n);
     });
     notes.forEach(n => { releaseNote(n); setPianoKey(n, false); });
+  }
+
+  // Mod wheel from either the on-screen slider or MIDI CC1 — keep both in step
+  function setModWheelValue(v) {
+    ModMatrix.setModWheel(v);
+    const el = $('mod-wheel');
+    if (el) el.value = v;
+    const vEl = $('mod-wheel-v');
+    if (vEl) vEl.textContent = `${Math.round(v * 100)}%`;
   }
 
   function panicAll() {
@@ -849,6 +859,7 @@ const UI = (() => {
     bindRange('lfo2-rate',  v => ModMatrix.setLFO2('rate', parseFloat(v)));
     bindRange('lfo2-depth', v => ModMatrix.setLFO2('depth',parseFloat(v)));
     bindWaveGroup('[data-osc="lfo2"]', v => ModMatrix.setLFO2('wave', v));
+    bindRange('mod-wheel', v => ModMatrix.setModWheel(parseFloat(v)));
 
     // Source value display
     const dispEl = $('mod-src-display');
@@ -1306,6 +1317,7 @@ const UI = (() => {
     // LFO2 (mod matrix) controls live outside the synth state
     const l2 = ModMatrix.getState().lfo2;
     sr('lfo2-rate', l2.rate); sr('lfo2-depth', l2.depth);
+    sr('mod-wheel', ModMatrix.sourceValues.modwheel || 0);
     document.querySelectorAll('[data-osc="lfo2"] .wb').forEach(b => {
       b.classList.toggle('active', b.dataset.wave === l2.wave);
     });
@@ -2018,7 +2030,7 @@ const UI = (() => {
             releaseNote(note);
             setPianoKey(note, false);
           } else if (cmd === 0xb0 && note === 1) {  // CC1 = mod wheel
-            ModMatrix.setModWheel(velocity / 127);
+            setModWheelValue(velocity / 127);
           } else if (cmd === 0xb0 && note === 123) { // all notes off
             panicAll();
           }

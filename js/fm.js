@@ -90,7 +90,8 @@ const FMEngine = (() => {
     // Create oscillators and gain nodes for each operator
     const oscNodes = [];
     const envGains = [];
-    const fmGains  = [];  // gain for FM signal (before adding to carrier freq)
+    const fmGains  = [];   // gain for FM signal (before adding to carrier freq)
+    const fmParams = [];   // {baseFreq, ratio, level, velocity} per operator
 
     for (let i = 0; i < 4; i++) {
       const op = ops[i];
@@ -111,6 +112,8 @@ const FMEngine = (() => {
       const fmGain = _ctx.createGain();
       // Modulation index: depth scales as ratio * baseFreq * level
       fmGain.gain.value = baseFreq * op.ratio * op.level * velocity;
+      // Remembered so the mod matrix FM Index destination can move it live
+      fmParams.push({ baseFreq, ratio: op.ratio, level: op.level, velocity });
 
       osc.connect(envGain);
       envGain.connect(fmGain);
@@ -139,7 +142,7 @@ const FMEngine = (() => {
     const dest = filter || _destination;
     mixGain.connect(dest);
 
-    fmVoices.set(midiNote, { oscNodes, envGains, fmGains, mixGain, now });
+    fmVoices.set(midiNote, { oscNodes, envGains, fmGains, fmParams, mixGain, now });
   }
 
   // ── Note off ──────────────────────────────────────────────
@@ -168,6 +171,27 @@ const FMEngine = (() => {
     fmVoices.clear();
   }
 
+  // ── Mod matrix → FM Index ─────────────────────────────────
+  // Offsets every operator's modulation index on the sounding voices. Called
+  // each frame, so it no-ops unless the offset actually moved.
+  let _lastModIndex = 0;
+  function setModIndex(offset) {
+    offset = offset || 0;
+    if (offset === _lastModIndex) return;
+    _lastModIndex = offset;
+    if (!_ctx) return;
+    const now = _ctx.currentTime;
+    fmVoices.forEach(voice => {
+      if (!voice.fmParams) return;
+      voice.fmGains.forEach((g, i) => {
+        const p = voice.fmParams[i];
+        if (!p) return;
+        const level = Math.max(0, Math.min(8, p.level + offset));
+        g.gain.setTargetAtTime(p.baseFreq * p.ratio * level * p.velocity, now, 0.008);
+      });
+    });
+  }
+
   // ── State setters ─────────────────────────────────────────
   function setEnabled(v) { state.enabled = v; if (!v) panic(); }
   function setAlgorithm(v) { state.algorithm = parseInt(v); }
@@ -184,7 +208,7 @@ const FMEngine = (() => {
   function getAlgorithms() { return ALGORITHMS; }
 
   return {
-    setContext, noteOn, noteOff, panic,
+    setContext, noteOn, noteOff, panic, setModIndex,
     setEnabled, setAlgorithm, setOperator,
     getState, loadState, reset,
     getAlgorithmLabels, getAlgorithms,
