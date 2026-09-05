@@ -1031,3 +1031,130 @@ footer {
   color: var(--dim);
   font-size: 0.73rem;
 }
+
+/* ── Granular Tab — Apple-native design language ──────────── */
+/* Scoped system colors: macOS system blue (selection/sliders)
+   and system green (active toggles), layered onto the app's
+   existing dark palette so this tab reads as a native panel. */
+:root {
+  --sf-blue:  #0a84ff;
+  --sf-green: #30d158;
+  --sf-red:   #ff453a;
+}
+
+.granular-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--gap);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+}
+
+.gr-header-panel { grid-column: 1 / -1; }
+
+@media (min-width: 700px) {
+  .gr-sample-panel { grid-column: span 2; }
+}
+
+/* Native-style checked toggles get the macOS "on" green */
+.toggle-wrap input:checked + .gr-toggle { background: var(--sf-green); border-color: var(--sf-green); }
+
+/* Native-style sliders pick up the macOS system blue */
+.granular-grid input[type="range"] { accent-color: var(--sf-blue); }
+
+/* ── Segmented control (macOS-style) ──────────────────────── */
+.seg {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+.seg-wrap { flex-wrap: wrap; }
+
+.seg-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--dim);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.seg-btn:hover { color: var(--text); }
+.seg-btn.active {
+  background: var(--sf-blue);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+
+/* ── Sample well ───────────────────────────────────────────── */
+.gr-well {
+  position: relative;
+  height: 130px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--bg-inset);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.gr-well:hover, .gr-well:focus { border-color: var(--sf-blue); outline: none; }
+.gr-well.drag-over { border-color: var(--sf-blue); background: rgba(10,132,255,0.08); }
+.gr-well.has-sample { border-style: solid; cursor: default; }
+
+.gr-waveform-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.gr-well-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--dim);
+  font-size: 0.78rem;
+  padding: 10px;
+  pointer-events: none;
+}
+.gr-well.has-sample .gr-well-empty { display: none; }
+
+.gr-well-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.gr-sample-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+
+.gr-mic-btn.recording {
+  background: var(--sf-red);
+  border-color: var(--sf-red);
+  color: #fff;
+  animation: gr-pulse 1.1s ease-in-out infinite;
+}
+@keyframes gr-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}

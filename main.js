@@ -38,6 +38,12 @@ function createWindow() {
     },
   });
 
+  // Allow mic access for the Granular engine's live-input sampling
+  // (macOS mic entitlement is declared in assets/entitlements.mac.plist)
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(permission === 'media');
+  });
+
   // Load the synth
   mainWindow.loadFile('index.html');
 
