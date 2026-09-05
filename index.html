@@ -510,15 +510,14 @@
       <!-- Wavetable mode -->
       <section class="panel wt-controls" id="wt-table-panel">
         <h2>Table Selection &amp; Morph</h2>
-        <div class="ctrl-row">
-          <span class="lbl">Table A</span>
-          <select id="wt-tableA"></select>
+        <div class="wt-seq-head">
+          <span class="lbl">Wave Sequence</span>
+          <span class="wt-seq-count" id="wt-frame-count">2 frames</span>
+          <button class="sm-btn" id="wt-add-frame" title="Add a frame to the sequence">+ Frame</button>
         </div>
-        <div class="ctrl-row">
-          <span class="lbl">Table B</span>
-          <select id="wt-tableB"></select>
-        </div>
-        <div class="ctrl-row"><span class="lbl">Position</span><input type="range" id="wt-position" min="0" max="1" step="0.001" value="0" /><span class="val" id="wt-position-v">0%</span></div>
+        <div class="wt-frames" id="wt-frames"><!-- built by JS --></div>
+        <div class="ctrl-row"><span class="lbl">Position</span><input type="range" id="wt-position" min="0" max="1" step="0.001" value="0" title="Scans the whole sequence — double-click to return to the first frame" /><span class="val" id="wt-position-v">0%</span></div>
+        <div class="wt-seg-readout" id="wt-seg-readout">Sine → Sawtooth</div>
         <canvas id="wt-canvas" width="300" height="100"></canvas>
         <div class="wt-table-grid" id="wt-table-grid"></div>
       </section>

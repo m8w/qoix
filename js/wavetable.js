@@ -2,8 +2,9 @@
    QOIX Synthesizer — Wavetable Oscillator
    ============================================================
    Two modes:
-     1. Wavetable  — scan through a bank of named single-cycle
-                     waveforms. Position and morph-speed param.
+     1. Wavetable  — a wave sequence of 2-8 single-cycle frames.
+                     One position control scans the whole series,
+                     interpolating between neighbouring frames.
      2. Oxford     — OSCar-style additive harmonic oscillator.
                      Directly set amplitude of harmonics 1–16.
    ============================================================ */
@@ -62,10 +63,10 @@ const WTEngine = (() => {
   const state = {
     enabled: false,
     mode: 'wavetable',         // 'wavetable' | 'oxford'
-    // Wavetable mode
-    tableA: 'Sine',
-    tableB: 'Sawtooth',
-    position: 0,               // 0=tableA, 1=tableB
+    // Wavetable mode — an ordered wave sequence; position 0..1 scans it
+    // end to end, morphing between each neighbouring pair in turn.
+    frames: ['Sine', 'Sawtooth'],
+    position: 0,               // 0 = first frame, 1 = last frame
     positionMod: 0,            // LFO modulation amount for position
     // Oxford mode
     harmonics: Array.from(DEFAULT_OXFORD_HARMONICS),
@@ -74,6 +75,9 @@ const WTEngine = (() => {
     octave: 0,
     detune: 0,
   };
+
+  const MIN_FRAMES = 2;
+  const MAX_FRAMES = 8;
 
   const DEFAULT_STATE = JSON.parse(JSON.stringify(state));
 
@@ -118,17 +122,28 @@ const WTEngine = (() => {
     return Math.max(0, Math.min(1, state.position + _modPosition));
   }
 
-  // ── Morphed wave (linear interpolation between A and B) ──
-  // Quantised to 1/128 and cached: the mod matrix can sweep the position every
-  // frame without rebuilding a PeriodicWave each time.
+  // Where a 0..1 position lands in the series: which pair of frames, and how
+  // far between them. With N frames there are N-1 morph segments.
+  function locate(pos) {
+    const n = state.frames.length;
+    if (n < 2) return { a: state.frames[0], b: state.frames[0], frac: 0, index: 0 };
+    const p = Math.max(0, Math.min(1, pos)) * (n - 1);
+    const i = Math.min(Math.floor(p), n - 2);
+    return { a: state.frames[i], b: state.frames[i + 1], frac: p - i, index: i };
+  }
+
+  // ── Morphed wave (interpolated between the two frames in play) ──
+  // Quantised to 1/128 of the whole series and cached: the mod matrix can
+  // sweep the position every frame without rebuilding a PeriodicWave.
   function getMorphedWave(pos) {
     pos = Math.max(0, Math.min(1, pos));
     const step = Math.round(pos * 128);
-    const key  = `${state.tableA}|${state.tableB}|${step}`;
+    const key  = `${state.frames.join('>')}|${step}`;
     if (_waveCache.has(key)) return _waveCache.get(key);
-    pos = step / 128;
-    const tA = WAVETABLE_BANK[state.tableA];
-    const tB = WAVETABLE_BANK[state.tableB];
+    const seg = locate(step / 128);
+    pos = seg.frac;
+    const tA = WAVETABLE_BANK[seg.a];
+    const tB = WAVETABLE_BANK[seg.b];
     if (!tA || !tB) return null;
     const len = Math.max(tA.imag.length, tB.imag.length);
     const real = new Float32Array(len);
@@ -209,8 +224,73 @@ const WTEngine = (() => {
   // ── State setters ─────────────────────────────────────────
   function setEnabled(v) { state.enabled = v; if (!v) panic(); }
   function setMode(m) { state.mode = m; updateWaveform(); }
-  function setTableA(n) { state.tableA = n; updateWaveform(); }
-  function setTableB(n) { state.tableB = n; updateWaveform(); }
+  // ── Wave sequence management ──────────────────────────────
+  function framesChanged() {
+    _waveCache.clear();          // cache keys embed the frame list
+    _lastAppliedStep = null;
+    updateWaveform();
+  }
+
+  function setFrame(index, name) {
+    if (index < 0 || index >= state.frames.length) return;
+    if (!WAVETABLE_BANK[name]) return;
+    state.frames[index] = name;
+    framesChanged();
+  }
+
+  function addFrame(name) {
+    if (state.frames.length >= MAX_FRAMES) return false;
+    const last = state.frames[state.frames.length - 1];
+    state.frames.push(WAVETABLE_BANK[name] ? name : last);
+    framesChanged();
+    return true;
+  }
+
+  function removeFrame(index) {
+    if (state.frames.length <= MIN_FRAMES) return false;
+    if (index < 0 || index >= state.frames.length) return false;
+    state.frames.splice(index, 1);
+    framesChanged();
+    return true;
+  }
+
+  function getFrames() { return state.frames.slice(); }
+  function getFrameLimits() { return { min: MIN_FRAMES, max: MAX_FRAMES }; }
+
+  // Which pair of frames a position sits between, for the UI readout
+  function positionInfo(pos) {
+    const seg = locate(pos === undefined ? effectivePosition() : pos);
+    return { index: seg.index, frac: seg.frac, a: seg.a, b: seg.b, count: state.frames.length };
+  }
+
+  // One cycle of the morphed waveform, for drawing the real shape rather
+  // than an approximation of it
+  function renderWaveform(pos, samples) {
+    const seg = locate(pos);
+    const tA = WAVETABLE_BANK[seg.a], tB = WAVETABLE_BANK[seg.b];
+    if (!tA || !tB) return null;
+    const len = Math.max(tA.imag.length, tB.imag.length);
+    const out = new Float32Array(samples);
+    let peak = 0;
+    for (let x = 0; x < samples; x++) {
+      const t = (x / samples) * Math.PI * 2;
+      let v = 0;
+      for (let h = 1; h < len; h++) {
+        const a = h < tA.imag.length ? tA.imag[h] : 0;
+        const b = h < tB.imag.length ? tB.imag[h] : 0;
+        const amp = a * (1 - seg.frac) + b * seg.frac;
+        if (amp !== 0) v += amp * Math.sin(h * t);
+      }
+      out[x] = v;
+      if (Math.abs(v) > peak) peak = Math.abs(v);
+    }
+    if (peak > 0) for (let x = 0; x < samples; x++) out[x] /= peak;
+    return out;
+  }
+
+  // Legacy two-table API, kept so older callers and patches still work
+  function setTableA(n) { setFrame(0, n); }
+  function setTableB(n) { setFrame(state.frames.length - 1, n); }
   function setPosition(v) { state.position = parseFloat(v); updateWaveform(); }
 
   // Mod matrix → WT Position. Called every frame, so only push a new waveform
@@ -243,6 +323,17 @@ const WTEngine = (() => {
   function loadState(s) {
     Object.assign(state, s);
     if (Array.isArray(s.harmonics)) state.harmonics = Array.from(s.harmonics);
+
+    // Patches saved before wave sequences carry tableA/tableB instead
+    if (Array.isArray(s.frames) && s.frames.length >= MIN_FRAMES) {
+      state.frames = s.frames.slice(0, MAX_FRAMES);
+    } else if (s.tableA || s.tableB) {
+      state.frames = [s.tableA || 'Sine', s.tableB || 'Sawtooth'];
+    }
+    delete state.tableA; delete state.tableB;
+    state.frames = state.frames.filter(n => WAVETABLE_BANK[n]);
+    while (state.frames.length < MIN_FRAMES) state.frames.push('Sine');
+
     _waveCache.clear();
     _lastAppliedStep = null;
     updateWaveform();
@@ -257,6 +348,8 @@ const WTEngine = (() => {
   return {
     setContext, noteOn, noteOff, panic,
     setEnabled, setMode, setTableA, setTableB,
+    setFrame, addFrame, removeFrame, getFrames, getFrameLimits,
+    positionInfo, renderWaveform,
     setPosition, setModPosition, setHarmonic, setLevel, setOctave, setDetune,
     getState, getTableNames, loadState, reset,
     get activeVoices() { return activeVoices; },

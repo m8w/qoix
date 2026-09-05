@@ -129,6 +129,8 @@ const UI = (() => {
         btn.classList.add('active');
         const panel = document.getElementById('tab-' + btn.dataset.tab);
         if (panel) panel.classList.add('active');
+        // Canvases sized to their displayed width need a redraw once shown
+        if (btn.dataset.tab === 'wt') { drawWavePreview(); drawOxfordSpectrum(); }
       });
     });
   }
@@ -546,44 +548,114 @@ const UI = (() => {
   }
 
   // ── Wavetable / Oxford controls ───────────────────────────
+  // Which frame of the wave sequence the table grid and picker act on
+  let wtSelectedFrame = 0;
+
   function buildWavetableUI() {
     const tableNames = WTEngine.getTableNames();
 
-    // Populate selects
-    ['wt-tableA','wt-tableB'].forEach((selId, idx) => {
-      const sel = $(selId);
-      if (!sel) return;
-      tableNames.forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        sel.appendChild(opt);
-      });
-      if (idx === 1) sel.value = 'Sawtooth';
-      sel.addEventListener('change', () => {
-        if (selId === 'wt-tableA') WTEngine.setTableA(sel.value);
-        else WTEngine.setTableB(sel.value);
-        drawWavePreview();
-      });
-    });
-
-    // Table button grid
+    // Table button grid — sets the selected frame of the sequence
     const grid = $('wt-table-grid');
-    if (grid) {
+    if (grid && !grid.children.length) {
       tableNames.forEach(name => {
         const btn = document.createElement('button');
         btn.className = 'wt-table-btn';
         btn.textContent = name;
         btn.addEventListener('click', () => {
-          WTEngine.setTableA(name);
-          $('wt-tableA').value = name;
-          grid.querySelectorAll('.wt-table-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          drawWavePreview();
+          WTEngine.setFrame(wtSelectedFrame, name);
+          renderWTFrames();
         });
         grid.appendChild(btn);
       });
     }
+
+    const addBtn = $('wt-add-frame');
+    if (addBtn && !addBtn.dataset.bound) {
+      addBtn.dataset.bound = '1';
+      addBtn.addEventListener('click', () => {
+        const frames = WTEngine.getFrames();
+        if (WTEngine.addFrame(frames[frames.length - 1])) {
+          wtSelectedFrame = WTEngine.getFrames().length - 1;
+          renderWTFrames();
+        }
+      });
+    }
+
+    renderWTFrames();
+  }
+
+  // Rebuild the wave-sequence rows from engine state
+  function renderWTFrames() {
+    const wrap = $('wt-frames');
+    if (!wrap) return;
+    const tableNames = WTEngine.getTableNames();
+    const frames = WTEngine.getFrames();
+    const { min, max } = WTEngine.getFrameLimits();
+    wtSelectedFrame = Math.min(wtSelectedFrame, frames.length - 1);
+
+    wrap.innerHTML = '';
+    frames.forEach((name, i) => {
+      const row = document.createElement('div');
+      row.className = 'wt-frame-row' + (i === wtSelectedFrame ? ' selected' : '');
+
+      const idx = document.createElement('span');
+      idx.className = 'wt-frame-idx';
+      idx.textContent = i + 1;
+
+      const sel = document.createElement('select');
+      tableNames.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n; opt.textContent = n;
+        sel.appendChild(opt);
+      });
+      sel.value = name;
+      sel.addEventListener('change', () => { WTEngine.setFrame(i, sel.value); renderWTFrames(); });
+      sel.addEventListener('click', e => e.stopPropagation());
+
+      const del = document.createElement('button');
+      del.className = 'wt-frame-del';
+      del.textContent = '✕';
+      del.title = frames.length <= min ? `A sequence needs at least ${min} frames` : 'Remove this frame';
+      del.disabled = frames.length <= min;
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        if (WTEngine.removeFrame(i)) { wtSelectedFrame = Math.max(0, i - 1); renderWTFrames(); }
+      });
+
+      row.addEventListener('click', () => { wtSelectedFrame = i; renderWTFrames(); });
+      row.appendChild(idx); row.appendChild(sel); row.appendChild(del);
+      wrap.appendChild(row);
+    });
+
+    const countEl = $('wt-frame-count');
+    if (countEl) countEl.textContent =
+      `${frames.length} frame${frames.length === 1 ? '' : 's'}` +
+      (frames.length >= max ? ' (max)' : '');
+
+    const addBtn = $('wt-add-frame');
+    if (addBtn) addBtn.disabled = frames.length >= max;
+
+    // Highlight the table-grid entry for the selected frame
+    const grid = $('wt-table-grid');
+    if (grid) grid.querySelectorAll('.wt-table-btn').forEach(b =>
+      b.classList.toggle('active', b.textContent === frames[wtSelectedFrame]));
+
+    updateWTSegmentReadout();
+    drawWavePreview();
+  }
+
+  // "Sawtooth → Square" — which pair of frames the position sits between
+  function updateWTSegmentReadout() {
+    const el = $('wt-seg-readout');
+    if (!el) return;
+    const info = WTEngine.positionInfo(parseFloat($('wt-position')?.value || 0));
+    el.textContent = info.frac < 0.001 ? info.a
+                   : info.frac > 0.999 ? info.b
+                   : `${info.a} → ${info.b}`;
+    document.querySelectorAll('.wt-frame-row').forEach((row, i) => {
+      const playing = i === info.index || (i === info.index + 1 && info.frac > 0);
+      row.classList.toggle('playing', playing);
+    });
   }
 
   function buildOxfordUI() {
@@ -667,44 +739,81 @@ const UI = (() => {
     return presets[name] || presets.sine;
   }
 
+  const _wtGhosts = { key: null, traces: [] };
+
+  // Draws the actual harmonic sum for each frame of the sequence, faintly,
+  // with the currently morphed shape on top — so the whole series is visible
+  // and the preview matches what is really sounding.
+  // The canvas is stretched to the panel width by CSS, so give its bitmap the
+  // same resolution it is displayed at — otherwise the traces are blurred.
+  function fitCanvas(canvas) {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width) return false;                       // hidden tab
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    return true;
+  }
+
   function drawWavePreview() {
     const canvas = $('wt-canvas');
     if (!canvas) return;
+    fitCanvas(canvas);
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = '#09090d';
     ctx.fillRect(0, 0, W, H);
 
+    const trace = (samples, alpha, width) => {
+      if (!samples) return;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      for (let x = 0; x < W; x++) {
+        const v = samples[Math.floor((x / W) * samples.length)];
+        const y = (H / 2) - v * (H / 2 - 5);
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    };
+
+    const frames = WTEngine.getFrames();
+    const n = frames.length;
+
+    // The ghost traces only change when the sequence does, so cache them —
+    // dragging the position then costs one waveform instead of n+1.
+    const key = frames.join('>') + '@' + W;
+    if (_wtGhosts.key !== key) {
+      _wtGhosts.key = key;
+      _wtGhosts.traces = frames.map((_, i) =>
+        WTEngine.renderWaveform(n > 1 ? i / (n - 1) : 0, W));
+    }
+
+    // Each frame in the series, ghosted, cool→warm across the sequence
+    _wtGhosts.traces.forEach((samples, i) => {
+      const hue = 232 + (i / Math.max(n - 1, 1)) * 60;
+      ctx.strokeStyle = `hsla(${hue}, 62%, 62%, 0.28)`;
+      trace(samples, 0.28, 1);
+    });
+
+    // The shape actually playing right now
     const pos = parseFloat($('wt-position')?.value || 0);
-    // Simple preview: draw two overlapping shapes
-    ctx.strokeStyle = 'rgba(91,103,216,0.4)';
-    ctx.lineWidth = 1;
-    drawSimpleWave(ctx, W, H, 0, 0.4); // table A
-    ctx.strokeStyle = 'rgba(230,200,74,0.4)';
-    drawSimpleWave(ctx, W, H, 1, 0.4); // table B
-    // Morphed
     ctx.strokeStyle = '#7b86f5';
-    ctx.lineWidth = 2;
     ctx.shadowColor = '#5b67d8';
     ctx.shadowBlur = 4;
-    drawSimpleWave(ctx, W, H, pos, 1);
+    trace(WTEngine.renderWaveform(pos, W), 1, 2);
     ctx.shadowBlur = 0;
-  }
 
-  function drawSimpleWave(ctx, W, H, pos, alpha) {
-    // Approximate: blend two sine-based waveforms
-    ctx.beginPath();
-    for (let x = 0; x < W; x++) {
-      const t = (x / W) * Math.PI * 2;
-      const saw = (((t / (Math.PI * 2)) % 1) * 2 - 1);
-      const sin = Math.sin(t);
-      const v = sin * (1 - pos) + saw * pos;
-      const y = (H / 2) - v * (H / 2 - 4);
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    // Segment ticks along the bottom, with the position marker
+    if (n > 1) {
+      for (let i = 0; i < n; i++) {
+        const x = (i / (n - 1)) * (W - 1);
+        ctx.fillStyle = 'rgba(122,134,245,0.35)';
+        ctx.fillRect(Math.round(x), H - 4, 1, 4);
+      }
+      ctx.fillStyle = '#e6c84a';
+      ctx.fillRect(Math.round(pos * (W - 1)) - 1, H - 6, 3, 6);
     }
-    ctx.stroke();
   }
 
   function drawOxfordSpectrum() {
@@ -748,7 +857,8 @@ const UI = (() => {
     bindRange('wt-level',   v => WTEngine.setLevel(parseFloat(v)));
     bindRange('wt-octave',  v => WTEngine.setOctave(parseInt(v)));
     bindRange('wt-detune',  v => WTEngine.setDetune(parseFloat(v)));
-    bindRange('wt-position',v => { WTEngine.setPosition(parseFloat(v)); drawWavePreview(); });
+    bindRange('wt-position',v => { WTEngine.setPosition(parseFloat(v)); updateWTSegmentReadout(); drawWavePreview(); });
+    bindDblClickReset('wt-position', 0, v => { WTEngine.setPosition(parseFloat(v)); updateWTSegmentReadout(); drawWavePreview(); });
 
     // Mode toggle
     document.querySelectorAll('[data-wtmode]').forEach(btn => {
@@ -1169,11 +1279,7 @@ const UI = (() => {
     sr('wt-level', ws.level); sr('wt-octave', ws.octave);
     sr('wt-detune', ws.detune); sr('wt-position', ws.position);
 
-    const a = $('wt-tableA'); if (a) a.value = ws.tableA;
-    const b = $('wt-tableB'); if (b) b.value = ws.tableB;
-    document.querySelectorAll('#wt-table-grid .wt-table-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.textContent === ws.tableA);
-    });
+    renderWTFrames();
 
     document.querySelectorAll('[data-wtmode]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.wtmode === ws.mode);

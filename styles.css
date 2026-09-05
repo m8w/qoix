@@ -407,6 +407,43 @@ select:focus { outline: none; border-color: var(--accent); }
 
 @media (max-width: 700px) { .wt-grid { grid-template-columns: 1fr; } }
 
+/* ── Wave sequence (multi-frame wavetable) ───────────────── */
+.wt-seq-head {
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 6px;
+}
+.wt-seq-count { color: var(--dim); font-size: 0.72rem; margin-left: auto; }
+.wt-frames { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.wt-frame-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.wt-frame-row:hover { background: rgba(91,103,216,0.07); }
+.wt-frame-row.selected { border-color: var(--accent); background: rgba(91,103,216,0.12); }
+.wt-frame-row select { flex: 1; min-width: 0; }
+.wt-frame-idx {
+  width: 18px; height: 18px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--bg-inset); border: 1px solid var(--border);
+  color: var(--dim); font-size: 0.66rem; font-weight: 600;
+}
+.wt-frame-row.selected .wt-frame-idx { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wt-frame-row.playing .wt-frame-idx { box-shadow: 0 0 6px var(--glow); color: var(--glow); }
+.wt-frame-del {
+  flex: none; padding: 1px 6px; font-size: 0.72rem;
+  background: transparent; border-color: transparent; color: var(--dim);
+}
+.wt-frame-del:hover { background: #1e0f0f; border-color: #6a1f1f; color: var(--accent2); }
+.wt-frame-del:disabled { opacity: 0.25; cursor: not-allowed; }
+.wt-frame-del:disabled:hover { background: transparent; border-color: transparent; color: var(--dim); }
+.wt-seg-readout {
+  color: var(--dim); font-size: 0.72rem; text-align: center;
+  margin: 2px 0 6px; font-style: italic;
+}
+
 #wt-canvas, #oxford-canvas {
   display: block;
   width: 100%;
