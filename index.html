@@ -46,6 +46,7 @@
     <button class="tab-btn" data-tab="rec">&#9679; Rec</button>
     <button class="tab-btn" data-tab="spectral">&#9670; Spectral</button>
     <button class="tab-btn" data-tab="micro">&#9835; Micro</button>
+    <button class="tab-btn" data-tab="granular">&#10052; Granular</button>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════
@@ -882,6 +883,119 @@
     </div><!-- .micro-grid -->
   </div><!-- #tab-micro -->
 
+  <!-- ═══════════════════════════════════════════════════
+       TAB: GRANULAR
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-granular">
+    <div class="granular-grid">
+
+      <!-- Header / Enable / Source -->
+      <section class="panel gr-header-panel">
+        <h2>Granular Synthesis
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="gr-enabled" /><span class="toggle gr-toggle"></span>
+          </label>
+        </h2>
+        <p class="spectral-desc">Grain clouds built from scratch on the Web Audio graph. Granulate a
+          loaded sample or the microphone, or synthesize grains directly from an oscillator or noise.</p>
+
+        <div class="section-sub">Grain Source</div>
+        <div class="seg" id="gr-source-seg" role="tablist">
+          <button class="seg-btn" data-source="sample">Sample</button>
+          <button class="seg-btn active" data-source="oscillator">Oscillator</button>
+          <button class="seg-btn" data-source="noise">Noise</button>
+        </div>
+
+        <div id="gr-osc-wave-row" class="section-sub" style="margin-top:10px">Oscillator Wave</div>
+        <div class="seg" id="gr-osc-wave-seg">
+          <button class="seg-btn active" data-wave="sine">Sine</button>
+          <button class="seg-btn" data-wave="triangle">Tri</button>
+          <button class="seg-btn" data-wave="sawtooth">Saw</button>
+          <button class="seg-btn" data-wave="square">Square</button>
+        </div>
+      </section>
+
+      <!-- Sample well: load / record / scan position -->
+      <section class="panel gr-sample-panel" id="gr-sample-panel">
+        <h2>Sample</h2>
+        <div class="gr-well" id="gr-well" tabindex="0">
+          <canvas id="gr-waveform" class="gr-waveform-canvas"></canvas>
+          <div class="gr-well-empty" id="gr-well-empty">
+            <span>&#8681;&nbsp; Drop audio file, click to browse</span>
+          </div>
+          <input type="file" id="gr-file-input" accept="audio/*" style="display:none" />
+        </div>
+        <div class="gr-well-controls">
+          <button id="gr-mic-btn" class="sm-btn gr-mic-btn">&#127908; Record Mic</button>
+          <button id="gr-clear-btn" class="sm-btn" style="display:none">Clear</button>
+          <span id="gr-sample-name" class="gr-sample-name"></span>
+        </div>
+        <div class="section-sub">Scan Position</div>
+        <div class="ctrl-row">
+          <span class="lbl">Position</span>
+          <input type="range" id="gr-position" min="0" max="1" step="0.001" value="0" />
+          <span class="val" id="gr-position-v">0%</span>
+        </div>
+      </section>
+
+      <!-- Grain parameters -->
+      <section class="panel gr-grain-panel">
+        <h2>Grain</h2>
+        <div class="ctrl-row"><span class="lbl">Size</span><input type="range" id="gr-size" min="5" max="1000" step="1" value="80" /><span class="val" id="gr-size-v">80ms</span></div>
+        <div class="ctrl-row"><span class="lbl">Size Spray</span><input type="range" id="gr-sizespray" min="0" max="1" step="0.01" value="0.15" /><span class="val" id="gr-sizespray-v">15%</span></div>
+        <div class="ctrl-row"><span class="lbl">Density</span><input type="range" id="gr-density" min="1" max="200" step="1" value="20" /><span class="val" id="gr-density-v">20/s</span></div>
+        <div class="ctrl-row"><span class="lbl">Timing Jitter</span><input type="range" id="gr-jitter" min="0" max="1" step="0.01" value="0.15" /><span class="val" id="gr-jitter-v">15%</span></div>
+        <div class="ctrl-row"><span class="lbl">Position Spray</span><input type="range" id="gr-posspray" min="0" max="500" step="1" value="20" /><span class="val" id="gr-posspray-v">20ms</span></div>
+        <div class="ctrl-row"><span class="lbl">Pitch Spray</span><input type="range" id="gr-pitchspray" min="0" max="24" step="0.1" value="0" /><span class="val" id="gr-pitchspray-v">0st</span></div>
+        <div class="ctrl-row"><span class="lbl">Pan Spread</span><input type="range" id="gr-panspread" min="0" max="1" step="0.01" value="0.5" /><span class="val" id="gr-panspread-v">50%</span></div>
+        <div class="ctrl-row"><span class="lbl">Reverse</span><input type="range" id="gr-reverse" min="0" max="1" step="0.01" value="0" /><span class="val" id="gr-reverse-v">0%</span></div>
+      </section>
+
+      <!-- Window shape -->
+      <section class="panel gr-window-panel">
+        <h2>Grain Window</h2>
+        <p class="spectral-desc">The amplitude envelope applied to every grain.</p>
+        <div class="seg seg-wrap" id="gr-window-seg">
+          <button class="seg-btn active" data-window="hann">Hann</button>
+          <button class="seg-btn" data-window="tukey">Tukey</button>
+          <button class="seg-btn" data-window="triangular">Tri</button>
+          <button class="seg-btn" data-window="gaussian">Gauss</button>
+          <button class="seg-btn" data-window="rectangular">Rect</button>
+        </div>
+      </section>
+
+      <!-- Scan -->
+      <section class="panel gr-scan-panel">
+        <h2>Auto Scan
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="gr-scan-enabled" /><span class="toggle gr-toggle"></span>
+          </label>
+        </h2>
+        <div class="seg" id="gr-scan-mode-seg">
+          <button class="seg-btn active" data-scanmode="loop">Loop</button>
+          <button class="seg-btn" data-scanmode="pingpong">Ping-Pong</button>
+        </div>
+        <div class="ctrl-row"><span class="lbl">Sweep</span><input type="range" id="gr-scan-period" min="0.5" max="60" step="0.1" value="8" /><span class="val" id="gr-scan-period-v">8.0s</span></div>
+        <div class="ctrl-row">
+          <span class="lbl">Freeze</span>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="gr-freeze" /><span class="toggle gr-toggle"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Envelope -->
+      <section class="panel gr-env-panel">
+        <h2>Amplitude Envelope</h2>
+        <div class="ctrl-row"><span class="lbl">A</span><input type="range" id="gr-env-a" min="0.001" max="2" step="0.001" value="0.05" /><span class="val" id="gr-env-a-v">50ms</span></div>
+        <div class="ctrl-row"><span class="lbl">D</span><input type="range" id="gr-env-d" min="0.001" max="2" step="0.001" value="0.1" /><span class="val" id="gr-env-d-v">100ms</span></div>
+        <div class="ctrl-row"><span class="lbl">S</span><input type="range" id="gr-env-s" min="0" max="1" step="0.01" value="0.8" /><span class="val" id="gr-env-s-v">80%</span></div>
+        <div class="ctrl-row"><span class="lbl">R</span><input type="range" id="gr-env-r" min="0.001" max="4" step="0.001" value="0.3" /><span class="val" id="gr-env-r-v">300ms</span></div>
+      </section>
+
+    </div><!-- .granular-grid -->
+  </div><!-- #tab-granular -->
+
   <!-- ── Always-visible: Keyboard ───────────────────── -->
   <section class="keyboard-section">
     <div class="kbd-header">
@@ -897,7 +1011,7 @@
     <div id="piano" class="piano"></div>
   </section>
 
-  <footer>QOIX Synthesizer · Web Audio API · FM + Wavetable + Oxford + Mod Matrix · <span id="footer-notes"></span></footer>
+  <footer>QOIX Synthesizer · Web Audio API · FM + Wavetable + Oxford + Mod Matrix + Granular · <span id="footer-notes"></span></footer>
 
 </div><!-- #app -->
 
@@ -912,6 +1026,7 @@
 <script src="js/recorder.js"></script>
 <script src="js/spectralfft.js"></script>
 <script src="js/microtonal.js"></script>
+<script src="js/granular.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>
