@@ -9,7 +9,7 @@
 
 const UI = (() => {
 
-  // ── Constants ────────────────────────────────────────────
+  // ── Constants ───────────────────────────────────────
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
   // Computer keyboard → semitone offset from current octave root
@@ -31,12 +31,18 @@ const UI = (() => {
     [20,true,''],[21,false,''],[22,true,''],[23,false,''],
   ];
 
-  // ── Helpers ────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────
   const $ = id => document.getElementById(id);
   const midiName = n => NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1);
 
   function fmt(id, v) {
     v = parseFloat(v);
+    if (id.includes('panlfo')) return `${Math.round(v * 100)}%`;
+    if (/-width$/.test(id)) return `${Math.round(v * 100)}%`;
+    if (/-pan$/.test(id)) {
+      const pct = Math.round(Math.abs(v) * 100);
+      return pct === 0 ? 'C' : (v < 0 ? `L${pct}` : `R${pct}`);
+    }
     if (id.includes('level') || id.includes('sustain') || id.includes('mix') ||
         id.includes('damp')  || id.includes('density') || id.includes('notelen') ||
         id.includes('swing') || id.includes('depth') || id.includes('fm-index'))
@@ -96,7 +102,7 @@ const UI = (() => {
     });
   }
 
-  // ── Tab switching ──────────────────────────────────────────
+  // ── Tab switching ───────────────────────────────
   function initTabs() {
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -241,7 +247,7 @@ const UI = (() => {
     });
   }
 
-  // ── Subtractive controls ─────────────────────────
+  // ── Subtractive controls ────────────────────────
   function bindSubtractive() {
     bindRange('master-volume', v => { Synth.setMasterVolume(parseFloat(v)); $('master-vol-disp').textContent = `${Math.round(v*100)}%`; });
 
@@ -288,6 +294,14 @@ const UI = (() => {
       const key = `osc${n}`;
       bindWaveGroup(`[data-oscfm="${n}"]`,  v => Synth.setOsc(key, 'fmFrom', v));
       bindRange(`osc${n}-fm-index`,         v => Synth.setOsc(key, 'fmIndex', parseFloat(v)));
+    });
+
+    // Per-OSC stereo (static pan, unison stereo width, LFO->Pan depth)
+    [1, 2, 3].forEach(n => {
+      const key = `osc${n}`;
+      bindRange(`osc${n}-pan`,    v => Synth.setOsc(key, 'pan', parseFloat(v)));
+      bindRange(`osc${n}-width`,  v => Synth.setOsc(key, 'stereoWidth', parseFloat(v)));
+      bindRange(`osc${n}-panlfo`, v => Synth.setOsc(key, 'panLfoDepth', parseFloat(v)));
     });
 
     // Per-OSC mix modes (osc2 and osc3)
@@ -353,7 +367,7 @@ const UI = (() => {
     });
   }
 
-  // ── FM controls ────────────────────────────────────────
+  // ── FM controls ─────────────────────────────────
   function buildFMAlgorithmSelect() {
     const sel = $('fm-algorithm');
     FMEngine.getAlgorithmLabels().forEach((label, i) => {
@@ -492,7 +506,7 @@ const UI = (() => {
     });
   }
 
-  // ── Wavetable / Oxford controls ────────────────────────
+  // ── Wavetable / Oxford controls ───────────────────────
   function buildWavetableUI() {
     const tableNames = WTEngine.getTableNames();
 
@@ -713,7 +727,7 @@ const UI = (() => {
     drawOxfordSpectrum();
   }
 
-  // ── Mod Matrix ─────────────────────────────────────────
+  // ── Mod Matrix ──────────────────────────────────
   function buildModMatrix() {
     const table = $('mod-matrix-table');
     if (!table) return;
@@ -893,7 +907,7 @@ const UI = (() => {
     });
   }
 
-  // ── Presets ─────────────────────────────────────────
+  // ── Presets ──────────────────────────────────────
   const STORAGE_KEY = 'qoix_user_patches';
 
   function loadUserPatches() {
@@ -1058,6 +1072,15 @@ const UI = (() => {
       sr(`osc${n}-filt-envamt`,    fs.envAmt);
     });
 
+    // Per-osc stereo sync
+    [1, 2, 3].forEach(n => {
+      const os = s[`osc${n}`];
+      if (!os) return;
+      sr(`osc${n}-pan`,    os.pan);
+      sr(`osc${n}-width`,  os.stereoWidth);
+      sr(`osc${n}-panlfo`, os.panLfoDepth);
+    });
+
     sc('noise-enabled', s.noise.enabled);
     sw('data-osc="noise"', s.noise.type);
     sr('noise-level', s.noise.level);
@@ -1128,7 +1151,7 @@ const UI = (() => {
     ctx.shadowBlur = 0;
   }
 
-  // ── Visualizer ────────────────────────────────────────
+  // ── Visualizer ─────────────────────────────────────
   let vizMode = 'waveform';
 
   function startVisualizer() {
@@ -1190,7 +1213,7 @@ const UI = (() => {
     requestAnimationFrame(draw);
   }
 
-  // ── Quality panel ──────────────────────────────────────
+  // ── Quality panel ──────────────────────────────────
   function bindQuality() {
     // Populate initial hardware info once context is running
     function updateHardwareInfo() {
@@ -1256,7 +1279,7 @@ const UI = (() => {
     if (cnt) cnt.textContent = used;
   }
 
-  // ── Offline Renderer UI ───────────────────────
+  // ── Offline Renderer UI ─────────────────────────
   function bindRenderer() {
     let parsedMidi = null;
 
@@ -1359,7 +1382,7 @@ const UI = (() => {
     });
   }
 
-  // ── Octave buttons ──────────────────────────────
+  // ── Octave buttons ────────────────────────────────
   function bindOctaveButtons() {
     $('kbd-oct-dn').addEventListener('click', () => {
       kbOctave = Math.max(0, kbOctave - 1);
@@ -1373,7 +1396,7 @@ const UI = (() => {
     });
   }
 
-  // ── Session Recorder ──────────────────────────────
+  // ── Session Recorder ───────────────────────────
   function bindRecorder() {
     const recBtn   = $('rec-record-btn');
     const stopBtn  = $('rec-stop-btn');
@@ -1568,7 +1591,7 @@ const UI = (() => {
     });
   }
 
-  // ── Spectral / FrFT Engine ─────────────────────────
+  // ── Spectral / FrFT Engine ────────────────────────
   function fmtSpectral(id, v) {
     v = parseFloat(v);
     if (id.includes('level') || id.includes('sustain') || id.includes('eigen'))
@@ -1646,7 +1669,7 @@ const UI = (() => {
     bindSpectralRange('spectral-env-r', v => SpectralFFT.setEnv('release', v));
   }
 
-  // ── Granular Engine ────────────────────────────────
+  // ── Granular Engine ──────────────────────────
   function fmtGranular(id, v) {
     v = parseFloat(v);
     if (id.includes('sizespray') || id.includes('jitter') || id.includes('panspread') ||
@@ -1887,7 +1910,7 @@ const UI = (() => {
     updateGranularSampleUI();
   }
 
-  // ── Init ───────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────
   function init() {
     Synth.init();
 
@@ -1970,7 +1993,7 @@ const UI = (() => {
     console.log('[QOIX] UI ready —', window.qoixApp ? 'Desktop' : 'Browser');
   }
 
-  // ── Desktop / Electron menu events ────────────────────────
+  // ── Desktop / Electron menu events ──────────────────────
   function initDesktopIntegrations() {
     const app = window.qoixApp;
 
@@ -2011,7 +2034,7 @@ const UI = (() => {
     }
   }
 
-  // ── Web MIDI ──────────────────────────────────────
+  // ── Web MIDI ───────────────────────────────────
   function initMIDI() {
     if (!navigator.requestMIDIAccess) return;
     navigator.requestMIDIAccess({ sysex: false }).then(access => {
