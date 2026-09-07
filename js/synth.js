@@ -35,6 +35,7 @@ const Synth = (() => {
   let modBusOsc1Det   = null;   // → osc1 detune (cents)
   let modBusOsc2Det   = null;
   let modBusOsc3Det   = null;
+  let modBusPan       = null;   // → per-voice master pan (-1..1)
 
   // Mod matrix JS state
   let jsLFOPhase    = 0;
@@ -58,12 +59,15 @@ const Synth = (() => {
   const state = {
     masterVolume: 0.7,
     osc1: { enabled: true,  wave: 'sawtooth', octave: 0,  detune: 0,  level: 0.8, voices: 1, unisonSpread: 20,
+            pan: 0, stereoWidth: 0, panLfoDepth: 0,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5 },
     osc2: { enabled: false, wave: 'square',   octave: 0,  detune: 7,  level: 0.5, voices: 1, unisonSpread: 20,
+            pan: 0, stereoWidth: 0, panLfoDepth: 0,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5, mixMode: 'add' },
     osc3: { enabled: false, wave: 'triangle', octave: -1, detune: -7, level: 0.5, voices: 1, unisonSpread: 20,
+            pan: 0, stereoWidth: 0, panLfoDepth: 0,
             filter: { type: 'lowpass', cutoff: 18000, resonance: 0.7, lfoDepth: 0, envAmt: 0 },
             fmFrom: 'none', fmIndex: 0.5, mixMode: 'add' },
     noise: { enabled: false, type: 'white', level: 0.2 },
@@ -104,6 +108,7 @@ const Synth = (() => {
     modBusOsc1Det   = makeModBus();
     modBusOsc2Det   = makeModBus();
     modBusOsc3Det   = makeModBus();
+    modBusPan       = makeModBus();
 
     console.log(`[QOIX] Audio engine initialized — ${ctx.sampleRate}Hz, ${quality.maxVoices} voices, FFT ${quality.fftSize}`);
   }
@@ -353,6 +358,21 @@ const Synth = (() => {
       return f;
     }
 
+    // Per-osc static pan + its own LFO->Pan depth (independent of the
+    // global LFO target, mirroring the per-osc filter LFO pattern above).
+    const oscPanners = {};
+    function makeOscPanner(oscState) {
+      const p = ctx.createStereoPanner();
+      p.pan.value = oscState.pan || 0;
+      if (s.lfo.enabled && lfoOsc && oscState.panLfoDepth > 0) {
+        const lfoPanGain = ctx.createGain();
+        lfoPanGain.gain.value = oscState.panLfoDepth * s.lfo.depth;
+        lfoOsc.connect(lfoPanGain);
+        lfoPanGain.connect(p.pan);
+      }
+      return p;
+    }
+
     const oscGroups = { osc1: [], osc2: [], osc3: [] };
     const rawSums   = {};
 
@@ -362,16 +382,26 @@ const Synth = (() => {
       rawSum.gain.value = 1;
       const nVoices = Math.max(1, Math.round(oscState.voices || 1));
       const spread  = oscState.unisonSpread || 0;
+      const width   = oscState.stereoWidth || 0;
       for (let v = 0; v < nVoices; v++) {
         const osc  = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = oscState.wave;
         osc.frequency.value = freq * Math.pow(2, oscState.octave);
-        const spreadOffset = nVoices > 1 ? ((v / (nVoices - 1)) - 0.5) * 2 * spread : 0;
-        osc.detune.value = oscState.detune + spreadOffset;
+        // voicePos spans -1..1 across the unison stack; drives both detune
+        // spread and stereo width so wider unison also widens the field.
+        const voicePos = nVoices > 1 ? ((v / (nVoices - 1)) - 0.5) * 2 : 0;
+        osc.detune.value = oscState.detune + voicePos * spread;
         gain.gain.value = oscState.level / nVoices;
         osc.connect(gain);
-        gain.connect(rawSum);
+        if (nVoices > 1 && width > 0) {
+          const unisonPan = ctx.createStereoPanner();
+          unisonPan.pan.value = voicePos * width;
+          gain.connect(unisonPan);
+          unisonPan.connect(rawSum);
+        } else {
+          gain.connect(rawSum);
+        }
         osc.start(now);
         oscs.push(osc);
         group.push(osc);
@@ -430,17 +460,26 @@ const Synth = (() => {
     }
 
     if (s.osc1.enabled) {
-      const f1 = makeOscFilter(s.osc1.filter, oscMixer);
+      const p1 = makeOscPanner(s.osc1);
+      oscPanners.osc1 = p1;
+      p1.connect(oscMixer);
+      const f1 = makeOscFilter(s.osc1.filter, p1);
       oscFilters.osc1 = f1;
       rawSums.osc1.connect(f1);
     }
     if (s.osc2.enabled) {
-      const f2 = makeOscFilter(s.osc2.filter, oscMixer);
+      const p2 = makeOscPanner(s.osc2);
+      oscPanners.osc2 = p2;
+      p2.connect(oscMixer);
+      const f2 = makeOscFilter(s.osc2.filter, p2);
       oscFilters.osc2 = f2;
       routeOscToFilter(rawSums.osc2, s.osc2, f2);
     }
     if (s.osc3.enabled) {
-      const f3 = makeOscFilter(s.osc3.filter, oscMixer);
+      const p3 = makeOscPanner(s.osc3);
+      oscPanners.osc3 = p3;
+      p3.connect(oscMixer);
+      const f3 = makeOscFilter(s.osc3.filter, p3);
       oscFilters.osc3 = f3;
       routeOscToFilter(rawSums.osc3, s.osc3, f3);
     }
@@ -477,6 +516,11 @@ const Synth = (() => {
       );
     }
 
+    // Per-voice master pan — sits after the amp envelope so it affects the
+    // whole voice (mirrors how the 'filter'/'amplitude' LFO targets already
+    // apply to the whole voice rather than a single oscillator).
+    const voicePan = ctx.createStereoPanner();
+
     // LFO routing
     if (s.lfo.enabled && lfoOsc) {
       const lfoTarget = s.lfo.target;
@@ -486,12 +530,15 @@ const Synth = (() => {
         lfoGain.connect(filter.frequency);
       } else if (lfoTarget === 'amplitude') {
         lfoGain.connect(ampEnv.gain);
+      } else if (lfoTarget === 'pan') {
+        lfoGain.connect(voicePan.pan);
       }
     }
 
     oscMixer.connect(filter);
     filter.connect(ampEnv);
-    ampEnv.connect(Synth._voiceDestination);
+    ampEnv.connect(voicePan);
+    voicePan.connect(Synth._voiceDestination);
 
     // Connect mod matrix buses (ConstantSourceNodes add to AudioParam automation)
     const modBusConns = [];
@@ -505,8 +552,9 @@ const Synth = (() => {
     oscGroups.osc2.forEach(o => conn(modBusOsc2Det, o.detune));
     oscGroups.osc3.forEach(o => conn(modBusOsc3Det, o.detune));
     conn(modBusFilterCut, filter.frequency);
+    conn(modBusPan, voicePan.pan);
 
-    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, oscFilters, modBusConns, startTime: now });
+    activeVoices.set(midiNote, { oscs, oscMixer, oscGroups, ampEnv, filter, voicePan, oscFilters, oscPanners, modBusConns, startTime: now });
     UI && UI.updateActiveNotes && UI.updateActiveNotes();
   }
 
@@ -562,6 +610,7 @@ const Synth = (() => {
       try { voice.oscMixer.disconnect(); } catch(e) {}
       try { voice.filter.disconnect();   } catch(e) {}
       try { voice.ampEnv.disconnect();   } catch(e) {}
+      try { voice.voicePan.disconnect(); } catch(e) {}
     }, (rel + 0.15) * 1000);
   }
 
@@ -587,9 +636,13 @@ const Synth = (() => {
       if (voice.oscFilters) {
         Object.values(voice.oscFilters).forEach(f => { try { f.disconnect(); } catch(e) {} });
       }
+      if (voice.oscPanners) {
+        Object.values(voice.oscPanners).forEach(p => { try { p.disconnect(); } catch(e) {} });
+      }
       try { voice.filter.disconnect(); } catch(e) {}
       try { voice.ampEnv.gain.cancelScheduledValues(now); } catch(e) {}
       try { voice.ampEnv.disconnect(); } catch(e) {}
+      try { voice.voicePan.disconnect(); } catch(e) {}
     });
     activeVoices.clear();
 
@@ -756,6 +809,7 @@ const Synth = (() => {
     modBusOsc1Det  .offset.setValueAtTime(mv.osc1_det   * getRange('osc1_det'),         now); // cents
     modBusOsc2Det  .offset.setValueAtTime(mv.osc2_det   * getRange('osc2_det'),         now);
     modBusOsc3Det  .offset.setValueAtTime(mv.osc3_det   * getRange('osc3_det'),         now);
+    modBusPan      .offset.setValueAtTime(mv.pan        * getRange('pan'),              now); // -1..1
 
     // Filter resonance — direct (no conflict with envelope)
     if (mv.filter_res !== 0) {

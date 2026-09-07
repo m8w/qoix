@@ -311,8 +311,19 @@ const Renderer = (() => {
           const sc = offCtx.createGain(); sc.gain.value = fs.lfoDepth * s.lfo.depth * 5000;
           lfoOsc.connect(sc); sc.connect(f.frequency);
         }
-        f.connect(oscMixer);
         return f;
+      }
+
+      // Per-osc static pan + its own LFO->Pan depth
+      function makeOscPan(oscState) {
+        const p = offCtx.createStereoPanner();
+        p.pan.value = oscState.pan || 0;
+        if (lfoOsc && oscState.panLfoDepth > 0) {
+          const sc = offCtx.createGain(); sc.gain.value = oscState.panLfoDepth * s.lfo.depth;
+          lfoOsc.connect(sc); sc.connect(p.pan);
+        }
+        p.connect(oscMixer);
+        return p;
       }
 
       // Build unison oscillator group
@@ -320,22 +331,32 @@ const Renderer = (() => {
         if (!oscState.enabled) return;
         const nV = Math.max(1, Math.round(oscState.voices || 1));
         const sp = oscState.unisonSpread || 0;
+        const width = oscState.stereoWidth || 0;
         for (let v=0; v<nV; v++) {
           const osc  = offCtx.createOscillator();
           const gain = offCtx.createGain();
           osc.type = oscState.wave;
           osc.frequency.value = freq * Math.pow(2, oscState.octave);
-          osc.detune.value = oscState.detune + (nV > 1 ? ((v/(nV-1))-0.5)*2*sp : 0);
+          const voicePos = nV > 1 ? ((v/(nV-1))-0.5)*2 : 0;
+          osc.detune.value = oscState.detune + voicePos * sp;
           gain.gain.value = oscState.level / nV;
-          osc.connect(gain); gain.connect(target); osc.start(t);
+          osc.connect(gain);
+          if (nV > 1 && width > 0) {
+            const unisonPan = offCtx.createStereoPanner();
+            unisonPan.pan.value = voicePos * width;
+            gain.connect(unisonPan); unisonPan.connect(target);
+          } else {
+            gain.connect(target);
+          }
+          osc.start(t);
           allOscs.push(osc);
           if (lfoOsc && s.lfo.target === 'pitch') lfoGain.connect(osc.detune);
         }
       }
 
-      const f1 = makeOscFilt(s.osc1.filter);
-      const f2 = makeOscFilt(s.osc2.filter);
-      const f3 = makeOscFilt(s.osc3.filter);
+      const f1 = makeOscFilt(s.osc1.filter); f1.connect(makeOscPan(s.osc1));
+      const f2 = makeOscFilt(s.osc2.filter); f2.connect(makeOscPan(s.osc2));
+      const f3 = makeOscFilt(s.osc3.filter); f3.connect(makeOscPan(s.osc3));
       buildOscs(s.osc1, f1);
       buildOscs(s.osc2, f2);
       buildOscs(s.osc3, f3);
@@ -358,12 +379,15 @@ const Renderer = (() => {
         masterFilt.frequency.linearRampToValueAtTime(clamp(s.filter.cutoff + s.fenv.amount, 20, 20000),                        t + s.fenv.attack);
         masterFilt.frequency.linearRampToValueAtTime(clamp(s.filter.cutoff + s.fenv.amount * s.fenv.sustain, 20, 20000), t + s.fenv.attack + s.fenv.decay);
       }
+      const voicePan = offCtx.createStereoPanner();
       if (lfoOsc && s.lfo.target === 'filter')    lfoGain.connect(masterFilt.frequency);
       if (lfoOsc && s.lfo.target === 'amplitude') lfoGain.connect(ampEnv.gain);
+      if (lfoOsc && s.lfo.target === 'pan')       lfoGain.connect(voicePan.pan);
 
       oscMixer.connect(masterFilt);
       masterFilt.connect(ampEnv);
-      ampEnv.connect(voiceDest);
+      ampEnv.connect(voicePan);
+      voicePan.connect(voiceDest);
 
       liveNotes.set(midiNote, { oscs: allOscs, ampEnv, masterFilt, velocity, noteOnTime: t });
     }
