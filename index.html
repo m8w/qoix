@@ -46,6 +46,7 @@
     <button class="tab-btn" data-tab="rec">&#9679; Rec</button>
     <button class="tab-btn" data-tab="spectral">&#9670; Spectral</button>
     <button class="tab-btn" data-tab="micro">&#9835; Micro</button>
+    <button class="tab-btn" data-tab="op1">&#9679;&#9679;&#9679;&#9679; OP&#8209;1 Phase</button>
   </nav>
 
   <!-- ═══════════════════════════════════════════════════
@@ -634,7 +635,7 @@
       <section class="panel render-drop-panel">
         <h2>MIDI File</h2>
         <div id="render-dropzone" class="render-dropzone">
-          <div class="rdz-icon"></div><!-- #tab-rand -->#127926;</div>
+          <div class="rdz-icon">&#127926;</div>
           <div class="rdz-main">Drop a .mid file here</div>
           <div class="rdz-sub">or click to browse</div>
           <input type="file" id="render-file-input" accept=".mid,.midi" style="display:none" />
@@ -677,13 +678,13 @@
       <!-- Render action -->
       <section class="panel render-action-panel">
         <h2>Render</h2>
-        <button id="render-start-btn" class="render-btn" disabled></div><!-- #tab-rand -->#9654;</div><!-- #tab-rand -->nbsp; Render to WAV</button>
+        <button id="render-start-btn" class="render-btn" disabled>&#9654;&nbsp; Render to WAV</button>
         <div id="render-progress-wrap" class="render-progress-wrap" style="display:none">
           <div class="render-progress-bar"><div id="render-progress-fill" class="render-progress-fill"></div></div>
           <div id="render-status-msg" class="render-status-msg">Preparing…</div>
         </div>
         <div id="render-download-wrap" class="render-download-wrap" style="display:none">
-          <a id="render-download-link" class="render-download-btn" download="qoix-render.wav"></div><!-- #tab-rand -->#8659;</div><!-- #tab-rand -->nbsp; Download WAV</a>
+          <a id="render-download-link" class="render-download-btn" download="qoix-render.wav">&#8659;&nbsp; Download WAV</a>
           <div id="render-file-info" class="render-file-info"></div>
         </div>
         <div class="section-sub" style="margin-top:14px">Why offline?</div>
@@ -882,6 +883,67 @@
     </div><!-- .micro-grid -->
   </div><!-- #tab-micro -->
 
+  <!-- ═══════════════════════════════════════════════════
+       TAB: OP-1 PHASE
+  ═══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-op1">
+    <div class="op1-grid">
+
+      <!-- The unit itself: screen, encoders, page keys -->
+      <section class="panel op1-unit">
+        <h2>OP&#8209;1 Phase Engine
+          <span class="op1-badge" id="op1-engine-status"></span>
+          <label class="toggle-wrap ml-auto">
+            <input type="checkbox" id="op1-enabled" /><span class="toggle"></span>
+          </label>
+        </h2>
+
+        <div class="op1-shell">
+          <div class="op1-screen-frame">
+            <canvas id="op1-display" class="op1-screen"></canvas>
+          </div>
+
+          <div class="op1-encoders" id="op1-encoders"></div>
+
+          <div class="op1-pages" id="op1-pages"></div>
+        </div>
+      </section>
+
+      <!-- Patches and help -->
+      <section class="panel op1-side">
+        <h2>Patch</h2>
+        <div class="ctrl-row">
+          <span class="lbl">Preset</span>
+          <select id="op1-patch-select" style="flex:1"></select>
+        </div>
+        <div class="ctrl-row" style="gap:6px">
+          <button id="op1-reset-btn" class="sm-btn">Reset to init</button>
+        </div>
+
+        <div class="section-sub">The four encoders</div>
+        <p class="spectral-desc">
+          Two phase&#8209;distortion oscillators per voice. A linear phase ramp is
+          warped through a moving breakpoint before it reads a sine table, so
+          <strong>shape</strong> sweeps sine&nbsp;&rarr;&nbsp;saw with no filter involved.
+          <strong>shift</strong> offsets the second oscillator around the cycle,
+          <strong>detune</strong> pulls it off pitch, and <strong>mix</strong>
+          crossfades between the two &mdash; the interference between them is the
+          &ldquo;phase&rdquo; in the name, and it is what the circle on the screen draws.
+        </p>
+
+        <div class="section-sub">Handling</div>
+        <ul class="op1-help">
+          <li><strong>Drag</strong> a knob up/down to turn it</li>
+          <li><strong>Shift&#8209;drag</strong> for fine steps, <strong>scroll</strong> to nudge</li>
+          <li><strong>Double&#8209;click</strong> a knob to reset it</li>
+          <li><strong>1&#8211;4</strong> switch pages while this tab is open</li>
+          <li>Play with the keyboard below, your computer keys, or MIDI</li>
+        </ul>
+      </section>
+
+    </div><!-- .op1-grid -->
+  </div><!-- #tab-op1 -->
+
   <!-- ── Always-visible: Keyboard ───────────────────── -->
   <section class="keyboard-section">
     <div class="kbd-header">
@@ -912,6 +974,8 @@
 <script src="js/recorder.js"></script>
 <script src="js/spectralfft.js"></script>
 <script src="js/microtonal.js"></script>
+<script src="js/op1phase.js"></script>
+<script src="js/op1panel.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

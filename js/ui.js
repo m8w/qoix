@@ -178,6 +178,7 @@ const UI = (() => {
     if (FMEngine.getState().enabled) FMEngine.noteOn(midiNote, velocity);
     if (WTEngine.getState().enabled) WTEngine.noteOn(midiNote, velocity);
     if (SpectralFFT.getState().enabled) SpectralFFT.noteOn(midiNote, velocity);
+    if (OP1Phase.getState().enabled) OP1Phase.noteOn(midiNote, velocity);
     Recorder.recordNoteOn(midiNote, velocity);
     updateActiveNotesDisplay();
   }
@@ -187,6 +188,7 @@ const UI = (() => {
     FMEngine.noteOff(midiNote);
     WTEngine.noteOff(midiNote);
     SpectralFFT.noteOff(midiNote);
+    OP1Phase.noteOff(midiNote);
     Recorder.recordNoteOff(midiNote);
     updateActiveNotesDisplay();
   }
@@ -196,6 +198,7 @@ const UI = (() => {
     FMEngine.panic();
     WTEngine.panic();
     SpectralFFT.panic();
+    OP1Phase.panic();
     RandomGen.stop();
     $('rand-status').textContent = 'Stopped';
     updateActiveNotesDisplay();
@@ -208,9 +211,20 @@ const UI = (() => {
   }
 
   // ── Computer keyboard input ───────────────────────────────
+  // Clicking a toggle label leaves its (visually hidden) checkbox
+  // focused, so blocking on "an INPUT has focus" silently killed
+  // note keys until you clicked elsewhere. Only block for controls
+  // that actually consume typed characters.
+  function isTextEntry(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    return tag === 'INPUT' && !/^(checkbox|radio|range|button|submit|reset|file)$/i.test(el.type);
+  }
+
   function initKeyboardInput() {
     document.addEventListener('keydown', e => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+      if (isTextEntry(e.target)) return;
       if (e.repeat) return;
 
       const k = e.key.toLowerCase();
@@ -1660,6 +1674,7 @@ const UI = (() => {
     bindRecorder();
     bindSpectral();
     bindMicrotonal();
+    OP1Panel.init();
     syncUIToState();
     startVisualizer();
     drawEnvelope();

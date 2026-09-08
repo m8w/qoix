@@ -1031,3 +1031,144 @@ footer {
   color: var(--dim);
   font-size: 0.73rem;
 }
+
+/* ── OP-1 Phase panel ────────────────────────────────────── */
+.op1-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(260px, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .op1-grid { grid-template-columns: 1fr; }
+}
+
+.op1-badge {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 10px;
+  font-weight: 700;
+}
+
+/* The unit — a slab of anodised aluminium with a screen in it */
+.op1-shell {
+  background: linear-gradient(160deg, #20302b 0%, #16221e 55%, #0f1815 100%);
+  border: 1px solid #0a100e;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 22px rgba(0,0,0,0.45);
+}
+
+.op1-screen-frame {
+  background: #050806;
+  border: 1px solid #000;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: inset 0 0 22px rgba(0,0,0,0.9), 0 0 0 1px rgba(120,200,180,0.07);
+}
+
+.op1-screen {
+  display: block;
+  width: 100%;
+  height: clamp(200px, 30vh, 320px);
+  border-radius: 5px;
+}
+
+/* Encoders — blue, green, white, orange, left to right */
+.op1-encoders {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.op1-knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px 6px;
+  border-radius: 10px;
+  cursor: ns-resize;
+  user-select: none;
+  touch-action: none;
+  outline: none;
+  transition: background 0.12s ease;
+}
+.op1-knob:hover        { background: rgba(255,255,255,0.03); }
+.op1-knob:focus-visible,
+.op1-knob.turning      { background: rgba(255,255,255,0.06); }
+.op1-knob:focus-visible { box-shadow: 0 0 0 1px var(--border); }
+.op1-knob canvas       { pointer-events: none; }
+
+.op1-knob-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 1.3px;
+  color: var(--dim);
+  font-weight: 700;
+}
+.op1-knob-value {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* Page keys */
+.op1-pages {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.op1-page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 6px;
+  background: #0e1614;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--dim);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.op1-page-btn:hover  { color: var(--text); border-color: var(--dim); }
+.op1-page-btn.active {
+  background: var(--accent);
+  border-color: var(--glow);
+  color: #fff;
+  box-shadow: 0 0 14px rgba(123,134,245,0.35);
+}
+
+.op1-page-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.09);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.op1-help {
+  list-style: none;
+  font-size: 0.76rem;
+  color: var(--dim);
+  line-height: 1.75;
+}
+.op1-help li::before { content: '· '; color: var(--green); }
+.op1-help strong     { color: var(--text); font-weight: 600; }
