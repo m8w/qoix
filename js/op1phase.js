@@ -540,6 +540,7 @@ registerProcessor('qoix-phase', QoixPhaseProcessor);
   // ── Patch snapshot / restore ──────────────────────────────
   function getPatch() {
     return JSON.parse(JSON.stringify({
+      enabled: state.enabled,
       shape: state.shape, shift: state.shift, detune: state.detune, mix: state.mix,
       env: state.env, fx: state.fx, lfo: state.lfo,
     }));
@@ -547,6 +548,10 @@ registerProcessor('qoix-phase', QoixPhaseProcessor);
 
   function setPatch(p) {
     if (!p) return;
+    if (typeof p.enabled === 'boolean') {
+      state.enabled = p.enabled;
+      if (!p.enabled) panic();
+    }
     ['shape', 'shift', 'detune', 'mix'].forEach(k => {
       if (typeof p[k] === 'number') setParam(k, p[k]);
     });

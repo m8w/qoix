@@ -488,12 +488,32 @@ Pure harmonic series partials 8 through 16
   // Public API
   // ---------------------------------------------------------------------------
 
+  // Restore a saved snapshot. A custom .scl loaded from disk has no
+  // entry in the library, so its parsed pitches travel with the patch
+  // and are restored verbatim; a built-in is re-derived by name.
+  function loadState(s) {
+    if (!s) return;
+    if (typeof s.rootNote === 'number') setRoot(s.rootNote);
+
+    if (s.scale && Array.isArray(s.scale.pitches)) {
+      state.scale     = JSON.parse(JSON.stringify(s.scale));
+      state.scaleName = s.scaleName || s.scale.description || 'Custom';
+    } else if (s.scaleName && Object.prototype.hasOwnProperty.call(SCALE_LIBRARY, s.scaleName)) {
+      setScaleByName(s.scaleName);
+    } else {
+      setScaleByName('12-EDO (Standard)');
+    }
+
+    state.enabled = !!s.enabled;
+  }
+
   return {
     noteToFreq,
     setEnabled,
     setRoot,
     setScaleByName,
     loadScl,
+    loadState,
     getScaleNames,
     getCentsTable,
     getState,

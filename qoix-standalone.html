@@ -4916,13 +4916,31 @@ const SpectralFFT = (() => {
   function setEnabled(v) { state.enabled = v; if (!v) panic(); }
   function setEnv(param, value) { state.env[param] = value; }
 
+  // Restore a saved snapshot. Every parameter is read fresh at
+  // noteOn, so merging into state is enough — but sounding voices
+  // were built from the old settings, so they are dropped first.
+  function loadState(s) {
+    if (!s) return;
+    panic();
+    if (typeof s.alpha === 'number')        state.alpha        = s.alpha;
+    if (typeof s.densityCross === 'number') state.densityCross = s.densityCross;
+    if (s.chirpShape)    state.chirpShape    = s.chirpShape;
+    if (s.densitySource) state.densitySource = s.densitySource;
+    if (Array.isArray(s.ops)) {
+      s.ops.forEach((op, i) => { if (state.ops[i] && op) Object.assign(state.ops[i], op); });
+    }
+    if (s.env)   Object.assign(state.env,   s.env);
+    if (s.eigen) Object.assign(state.eigen, s.eigen);
+    state.enabled = !!s.enabled;
+  }
+
   function getState()       { return state; }
   function getActiveVoices(){ return activeVoices; }
 
   return {
     init, noteOn, noteOff, panic,
     setAlpha, setChirpShape, setOp, setEigen, setEnabled, setEnv,
-    getState, getActiveVoices,
+    getState, loadState, getActiveVoices,
   };
 
 })();
@@ -5420,12 +5438,32 @@ Pure harmonic series partials 8 through 16
   // Public API
   // ---------------------------------------------------------------------------
 
+  // Restore a saved snapshot. A custom .scl loaded from disk has no
+  // entry in the library, so its parsed pitches travel with the patch
+  // and are restored verbatim; a built-in is re-derived by name.
+  function loadState(s) {
+    if (!s) return;
+    if (typeof s.rootNote === 'number') setRoot(s.rootNote);
+
+    if (s.scale && Array.isArray(s.scale.pitches)) {
+      state.scale     = JSON.parse(JSON.stringify(s.scale));
+      state.scaleName = s.scaleName || s.scale.description || 'Custom';
+    } else if (s.scaleName && Object.prototype.hasOwnProperty.call(SCALE_LIBRARY, s.scaleName)) {
+      setScaleByName(s.scaleName);
+    } else {
+      setScaleByName('12-EDO (Standard)');
+    }
+
+    state.enabled = !!s.enabled;
+  }
+
   return {
     noteToFreq,
     setEnabled,
     setRoot,
     setScaleByName,
     loadScl,
+    loadState,
     getScaleNames,
     getCentsTable,
     getState,
@@ -5979,6 +6017,7 @@ registerProcessor('qoix-phase', QoixPhaseProcessor);
   // ── Patch snapshot / restore ──────────────────────────────
   function getPatch() {
     return JSON.parse(JSON.stringify({
+      enabled: state.enabled,
       shape: state.shape, shift: state.shift, detune: state.detune, mix: state.mix,
       env: state.env, fx: state.fx, lfo: state.lfo,
     }));
@@ -5986,6 +6025,10 @@ registerProcessor('qoix-phase', QoixPhaseProcessor);
 
   function setPatch(p) {
     if (!p) return;
+    if (typeof p.enabled === 'boolean') {
+      state.enabled = p.enabled;
+      if (!p.enabled) panic();
+    }
     ['shape', 'shift', 'detune', 'mix'].forEach(k => {
       if (typeof p[k] === 'number') setParam(k, p[k]);
     });
@@ -6816,6 +6859,191 @@ const OP1Panel = (() => {
   }
 
   return { init, refreshKnobs, setPage, getFactory: () => FACTORY };
+
+})();
+
+</script>
+<script>
+/* ── js/patch.js ── */
+/* ============================================================
+   QOIX — Patch format
+   ============================================================
+   One snapshot covering every engine, so Save / Export capture
+   the whole instrument rather than just the subtractive tab.
+
+   Layout:
+
+     {
+       name: 'My Patch',
+       qoixPatchVersion: 2,
+       ...subtractive fields at the top level...
+       engines: { fm, wt, matrix, spectral, micro, op1 }
+     }
+
+   The subtractive state stays at the top level on purpose. That
+   is exactly the version 1 layout, so patches saved before this
+   existed still load (they simply carry no `engines` block), and
+   patches saved now still load their subtractive half in an older
+   build. Adding an engine means adding one entry to ENGINES.
+   ============================================================ */
+
+'use strict';
+
+const Patch = (() => {
+
+  const VERSION = 2;
+
+  const clone = v => JSON.parse(JSON.stringify(v));
+
+  // Keys that live alongside the subtractive fields but are not part
+  // of them. Synth.loadPreset deep-merges whatever it is handed, so
+  // these are stripped off before it sees a patch — otherwise they
+  // take up residence inside the synth's own state.
+  const META_KEYS = ['engines', 'qoixPatchVersion'];
+
+  function withoutMeta(obj) {
+    const out = clone(obj);
+    META_KEYS.forEach(k => delete out[k]);
+    return out;
+  }
+
+  // Each engine says how to snapshot itself, how to restore itself,
+  // and — for engines that build their audio graph lazily — how to
+  // wake up when a patch arrives with them already switched on.
+  const ENGINES = [
+    {
+      key: 'fm',
+      get:   () => FMEngine.getState(),
+      set:   s  => FMEngine.loadState(s),
+      wake:  () => FMEngine.setContext(Synth._getContext(), Synth._voiceDestination),
+      panic: () => FMEngine.panic(),
+    },
+    {
+      key: 'wt',
+      get:   () => WTEngine.getState(),
+      set:   s  => WTEngine.loadState(s),
+      wake:  () => WTEngine.setContext(Synth._getContext(), Synth._voiceDestination),
+      panic: () => WTEngine.panic(),
+    },
+    {
+      key: 'matrix',
+      get:   () => ModMatrix.getState(),
+      set:   s  => ModMatrix.loadState(s),
+    },
+    {
+      key: 'spectral',
+      get:   () => SpectralFFT.getState(),
+      set:   s  => SpectralFFT.loadState(s),
+      wake:  () => SpectralFFT.init(),
+      panic: () => SpectralFFT.panic(),
+    },
+    {
+      key: 'micro',
+      get:   () => Microtonal.getState(),
+      set:   s  => Microtonal.loadState(s),
+    },
+    {
+      key: 'op1',
+      get:   () => OP1Phase.getPatch(),
+      set:   s  => OP1Phase.setPatch(s),
+      wake:  () => OP1Phase.init(),
+      panic: () => OP1Phase.panic(),
+    },
+  ];
+
+  // The mod matrix and tuning have no enabled flag — they are always
+  // live — so they simply never report as needing a wake.
+  function engineEnabled(snapshot) {
+    return !!(snapshot && snapshot.enabled);
+  }
+
+  // ── Snapshot everything ───────────────────────────────────
+  function collect(name) {
+    const patch = withoutMeta(Synth.getState());
+    patch.name = (name || patch.name || 'Untitled').trim();
+    patch.qoixPatchVersion = VERSION;
+
+    patch.engines = {};
+    ENGINES.forEach(e => {
+      try { patch.engines[e.key] = clone(e.get()); }
+      catch (err) { console.warn('[QOIX] patch: could not snapshot ' + e.key, err); }
+    });
+
+    return patch;
+  }
+
+  // ── Restore everything ────────────────────────────────────
+  function apply(patch) {
+    if (!patch || typeof patch !== 'object') return;
+
+    // A patch change now swaps the whole instrument, so every engine
+    // starts from silence rather than leaving voices sustaining under
+    // settings that no longer exist.
+    try { Synth.panic(); } catch (err) {}
+    ENGINES.forEach(e => { if (e.panic) { try { e.panic(); } catch (err) {} } });
+
+    Synth.loadPreset(withoutMeta(patch));
+
+    // A version 1 patch carries the subtractive half only. Leave the
+    // other engines exactly as they are rather than resetting them.
+    const engines = patch.engines;
+    if (!engines) return;
+
+    ENGINES.forEach(e => {
+      const snapshot = engines[e.key];
+      if (!snapshot) return;
+      try {
+        e.set(snapshot);
+        // An engine that arrives switched on needs its audio graph,
+        // which it would otherwise only build on first manual enable.
+        if (e.wake && engineEnabled(snapshot)) {
+          Synth.ensureContext();
+          e.wake();
+        }
+      } catch (err) {
+        console.warn('[QOIX] patch: could not restore ' + e.key, err);
+      }
+    });
+  }
+
+  // ── Which engines a patch carries (for the UI summary) ────
+  function enginesIn(patch) {
+    if (!patch || !patch.engines) return [];
+    return ENGINES.map(e => e.key).filter(k => patch.engines[k]);
+  }
+
+  function version(patch) {
+    return (patch && patch.qoixPatchVersion) || 1;
+  }
+
+  // ── Factory presets ───────────────────────────────────────
+  // The built-in presets describe a whole instrument ("Lead — Screaming
+  // Saw"), but they were written before patches covered more than the
+  // subtractive engine, so they carry no `engines` block. Loading one
+  // as-is would leave whatever else is switched on playing over the
+  // top, and the preset would not sound like its name. Give them an
+  // engines block that switches the rest off.
+  //
+  // Legacy *user* patches are deliberately left alone by apply() — the
+  // user's own intent there predates the feature and is ambiguous, so
+  // their other engines survive the load.
+  function asFactory(preset) {
+    if (!preset) return preset;
+    const out = clone(preset);
+    if (out.engines) return out;          // already a full patch
+    out.qoixPatchVersion = VERSION;
+    out.engines = {
+      fm:       Object.assign(clone(FMEngine.getState()),    { enabled: false }),
+      wt:       Object.assign(clone(WTEngine.getState()),    { enabled: false }),
+      spectral: Object.assign(clone(SpectralFFT.getState()), { enabled: false }),
+      op1:      Object.assign(OP1Phase.getPatch(),           { enabled: false }),
+      // The mod matrix and tuning are performance-wide rather than part
+      // of a sound, so a factory preset leaves them untouched.
+    };
+    return out;
+  }
+
+  return { VERSION, collect, apply, enginesIn, version, asFactory };
 
 })();
 
@@ -7777,8 +8005,10 @@ const UI = (() => {
       const [type, idx] = sel.value.split(':');
       const p = type === 'user' ? loadUserPatches()[parseInt(idx)] : Presets[parseInt(idx)];
       if (!p) return;
-      Synth.loadPreset(p);
-      syncUIToState();
+      // A factory preset is a whole sound, so it also switches the other
+      // engines off; a user's own patch is restored exactly as saved.
+      Patch.apply(type === 'user' ? p : Patch.asFactory(p));
+      syncEverything();
       // Show delete button only for user patches
       if ($('delete-preset-btn')) $('delete-preset-btn').style.display = type === 'user' ? '' : 'none';
     });
@@ -7787,8 +8017,7 @@ const UI = (() => {
     saveBtn.addEventListener('click', () => {
       const name = prompt('Name this patch:', 'My Patch');
       if (!name || !name.trim()) return;
-      const snap = JSON.parse(JSON.stringify(Synth.getState()));
-      snap.name = name.trim();
+      const snap = Patch.collect(name);
       const user = loadUserPatches();
       user.push(snap);
       saveUserPatches(user);
@@ -7814,9 +8043,8 @@ const UI = (() => {
     // Export current patch as a JSON file
     if ($('export-patch-btn')) {
       $('export-patch-btn').addEventListener('click', () => {
-        const snap = JSON.parse(JSON.stringify(Synth.getState()));
+        const snap = Patch.collect();
         const name = snap.name || 'qoix-patch';
-        snap.name = name;
         const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -7841,8 +8069,8 @@ const UI = (() => {
             user.push(patch);
             saveUserPatches(user);
             rebuildOptions('user:' + (user.length - 1));
-            Synth.loadPreset(patch);
-            syncUIToState();
+            Patch.apply(patch);
+            syncEverything();
             if ($('delete-preset-btn')) $('delete-preset-btn').style.display = '';
           } catch(err) { alert('Could not load patch: ' + err.message); }
         };
@@ -7922,6 +8150,166 @@ const UI = (() => {
 
     const mvEl = $('master-vol-disp');
     if (mvEl) mvEl.textContent = `${Math.round(s.masterVolume * 100)}%`;
+  }
+
+  // ── Engine UI sync ────────────────────────────────────────
+  // syncUIToState covers the subtractive tab. Patches now carry every
+  // engine, so each tab needs its controls pushed back from state too.
+  function syncEngineUI() {
+    syncFMUI();
+    syncWavetableUI();
+    syncModMatrixUI();
+    syncSpectralUI();
+    syncMicrotonalUI();
+    syncOP1UI();
+  }
+
+  function setRange(id, v, fmtFn) {
+    const el = $(id); if (!el) return;
+    el.value = v;
+    const vEl = $(id + '-v');
+    if (vEl && fmtFn) vEl.textContent = fmtFn(id, v);
+  }
+
+  function setCheck(id, v) { const el = $(id); if (el) el.checked = !!v; }
+
+  function syncFMUI() {
+    const f = FMEngine.getState();
+    setCheck('fm-enabled', f.enabled);
+
+    const algo = $('fm-algorithm');
+    if (algo) algo.value = f.algorithm;
+    drawFMAlgorithm(f.algorithm);
+
+    (f.operators || []).forEach((op, i) => {
+      document.querySelectorAll(`.fm-ratio[data-op="${i}"]`).forEach(el => { el.value = op.ratio; });
+      document.querySelectorAll(`.fm-ratio-v[data-op="${i}"]`).forEach(d => { d.textContent = op.ratio.toFixed(2); });
+
+      ['level', 'attack', 'decay', 'sustain', 'release'].forEach(param => {
+        const v = op[param];
+        if (typeof v !== 'number') return;
+        document.querySelectorAll(`.fm-${param}[data-op="${i}"]`).forEach(el => { el.value = v; });
+        const shown = (param === 'level' || param === 'sustain')
+          ? `${Math.round(v * 100)}%`
+          : v < 1 ? `${Math.round(v * 1000)}ms` : `${v.toFixed(2)}s`;
+        document.querySelectorAll(`.fm-${param}-v[data-op="${i}"]`).forEach(d => { d.textContent = shown; });
+      });
+    });
+  }
+
+  function syncWavetableUI() {
+    const w = WTEngine.getState();
+    setCheck('wt-enabled', w.enabled);
+
+    const a = $('wt-tableA'); if (a) a.value = w.tableA;
+    const b = $('wt-tableB'); if (b) b.value = w.tableB;
+
+    document.querySelectorAll('.wt-table-btn').forEach(btn =>
+      btn.classList.toggle('active', btn.textContent === w.tableA));
+
+    setRange('wt-position', w.position, () => `${Math.round(w.position * 100)}%`);
+    setRange('wt-level',    w.level,    () => `${Math.round(w.level * 100)}%`);
+    setRange('wt-octave',   w.octave,   () => `${w.octave > 0 ? '+' : ''}${w.octave}`);
+    setRange('wt-detune',   w.detune,   () => `${w.detune > 0 ? '+' : ''}${w.detune}`);
+
+    document.querySelectorAll('[data-wtmode]').forEach(btn =>
+      btn.classList.toggle('active', btn.dataset.wtmode === w.mode));
+    const tp = $('wt-table-panel');  if (tp) tp.style.display = w.mode === 'wavetable' ? '' : 'none';
+    const op = $('wt-oxford-panel'); if (op) op.style.display = w.mode === 'oxford'    ? '' : 'none';
+
+    // Oxford faders: slider, glowing bar height and readout all follow
+    const grid = $('harmonic-grid');
+    if (grid && Array.isArray(w.harmonics)) {
+      grid.querySelectorAll('.harmonic-col').forEach((col, i) => {
+        const v      = i < w.harmonics.length ? w.harmonics[i] : 0;
+        const slider = col.querySelector('.harm-slider');
+        const bar    = col.querySelector('.harm-bar');
+        const val    = col.querySelector('.val');
+        if (slider) slider.value = v;
+        if (bar)    bar.style.height = `${v * 100}%`;
+        if (val)    val.textContent  = `${Math.round(v * 100)}%`;
+      });
+    }
+
+    drawWavePreview();
+    drawOxfordSpectrum();
+  }
+
+  function syncModMatrixUI() {
+    // Every cell carries its own dot, slider and readout, so the table
+    // is cheapest to rebuild wholesale from the restored matrix.
+    const table = $('mod-matrix-table');
+    if (table) { table.innerHTML = ''; buildModMatrix(); }
+
+    const m = ModMatrix.getState();
+    if (!m.lfo2) return;
+    setRange('lfo2-rate',  m.lfo2.rate,  () => `${Number(m.lfo2.rate).toFixed(2)} Hz`);
+    setRange('lfo2-depth', m.lfo2.depth, () => `${Math.round(m.lfo2.depth * 100)}%`);
+    document.querySelectorAll('[data-osc="lfo2"]').forEach(btn =>
+      btn.classList.toggle('active', btn.dataset.wave === m.lfo2.wave));
+  }
+
+  function syncSpectralUI() {
+    const sp = SpectralFFT.getState();
+    setCheck('spectral-enabled', sp.enabled);
+    setRange('spectral-alpha', sp.alpha, fmtSpectral);
+
+    const chirp = $('spectral-chirp-btns');
+    if (chirp) chirp.querySelectorAll('.wb').forEach(b =>
+      b.classList.toggle('active', b.dataset.chirp === sp.chirpShape));
+
+    (sp.ops || []).forEach((op, i) => {
+      setCheck(`spectral-op${i}-en`, op.enabled);
+      setRange(`spectral-op${i}-ratio`, op.ratio,      fmtSpectral);
+      setRange(`spectral-op${i}-chirp`, op.chirpRatio, fmtSpectral);
+      setRange(`spectral-op${i}-level`, op.level,      fmtSpectral);
+    });
+
+    setRange('eigen-p1',  sp.eigen.p1,  fmtSpectral);
+    setRange('eigen-pm1', sp.eigen.pm1, fmtSpectral);
+    setRange('eigen-pi',  sp.eigen.pi,  fmtSpectral);
+    setRange('eigen-pmi', sp.eigen.pmi, fmtSpectral);
+
+    setRange('spectral-env-a', sp.env.attack,  fmtSpectral);
+    setRange('spectral-env-d', sp.env.decay,   fmtSpectral);
+    setRange('spectral-env-s', sp.env.sustain, fmtSpectral);
+    setRange('spectral-env-r', sp.env.release, fmtSpectral);
+  }
+
+  function syncMicrotonalUI() {
+    const mi = Microtonal.getState();
+    setCheck('micro-enabled', mi.enabled);
+
+    const scaleSel = $('micro-scale-select');
+    if (scaleSel) {
+      // A patch can carry a custom .scl that is not in the library —
+      // give it an option of its own so the selector can show it.
+      const known = Array.from(scaleSel.options).some(o => o.value === mi.scaleName);
+      if (!known && mi.scaleName) {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = mi.scaleName;
+        scaleSel.appendChild(opt);
+      }
+      scaleSel.value = mi.scaleName;
+    }
+
+    const rootSel = $('micro-root-select');
+    if (rootSel) rootSel.value = mi.rootNote;
+    const rootV = $('micro-root-v');
+    if (rootV) rootV.textContent = midiName(mi.rootNote);
+
+    updateMicroDisplay();
+  }
+
+  function syncOP1UI() {
+    if (typeof OP1Phase === 'undefined') return;
+    setCheck('op1-enabled', OP1Phase.getState().enabled);
+    if (typeof OP1Panel !== 'undefined') OP1Panel.refreshKnobs();
+  }
+
+  function syncEverything() {
+    syncUIToState();
+    syncEngineUI();
   }
 
   // ── Envelope canvas draw ──────────────────────────────────
@@ -8654,7 +9042,12 @@ const UI = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { updateActiveNotes: updateActiveNotesDisplay };
+  return {
+    updateActiveNotes: updateActiveNotesDisplay,
+    // Push every control back from engine state — for anything that
+    // changes a patch without going through the handlers here.
+    syncAll: syncEverything,
+  };
 
 })();
 
