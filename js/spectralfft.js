@@ -277,13 +277,31 @@ const SpectralFFT = (() => {
   function setEnabled(v) { state.enabled = v; if (!v) panic(); }
   function setEnv(param, value) { state.env[param] = value; }
 
+  // Restore a saved snapshot. Every parameter is read fresh at
+  // noteOn, so merging into state is enough — but sounding voices
+  // were built from the old settings, so they are dropped first.
+  function loadState(s) {
+    if (!s) return;
+    panic();
+    if (typeof s.alpha === 'number')        state.alpha        = s.alpha;
+    if (typeof s.densityCross === 'number') state.densityCross = s.densityCross;
+    if (s.chirpShape)    state.chirpShape    = s.chirpShape;
+    if (s.densitySource) state.densitySource = s.densitySource;
+    if (Array.isArray(s.ops)) {
+      s.ops.forEach((op, i) => { if (state.ops[i] && op) Object.assign(state.ops[i], op); });
+    }
+    if (s.env)   Object.assign(state.env,   s.env);
+    if (s.eigen) Object.assign(state.eigen, s.eigen);
+    state.enabled = !!s.enabled;
+  }
+
   function getState()       { return state; }
   function getActiveVoices(){ return activeVoices; }
 
   return {
     init, noteOn, noteOff, panic,
     setAlpha, setChirpShape, setOp, setEigen, setEnabled, setEnv,
-    getState, getActiveVoices,
+    getState, loadState, getActiveVoices,
   };
 
 })();

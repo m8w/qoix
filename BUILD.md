@@ -19,6 +19,24 @@ npm start
 npm run dev
 ```
 
+## Single-file standalone build
+
+```bash
+npm run build:standalone
+```
+
+Inlines `styles.css` and every `js/*.js` into `qoix-standalone.html` — one file
+with no external references, so it runs straight off the filesystem (AirDrop it
+to an iPhone and open it in Safari; no local server required).
+
+Re-run it after changing `index.html`, `styles.css`, or anything in `js/`.
+Never edit `qoix-standalone.html` by hand — it is generated.
+
+> Opened over `file://`, browsers refuse to load the OP-1 engine's AudioWorklet
+> module (blob URLs from an opaque origin), so that engine falls back to
+> PeriodicWave oscillators and its badge reads `compat`. Every other engine is
+> unaffected. Serve the same file over `http://` for the full OP-1 engine.
+
 ## Build installers
 
 ```bash

@@ -12,6 +12,7 @@
   "private": true,
   "scripts": {
     "start":       "electron .",
+    "build:standalone": "node tools/build-standalone.js",
     "dev":         "electron . --dev",
     "build":       "electron-builder build --publish never",
     "build:mac":   "electron-builder build --mac --publish never",
